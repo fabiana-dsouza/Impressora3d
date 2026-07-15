@@ -1,0 +1,288 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-body: "Rubik", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Chakra Petch", "Rubik", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    monospace;
+  /* a notinha de papel */
+  --papel: #f4edda;
+  --papel-tinta: #2b2418;
+  --papel-suave: #92876b;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  background-color: #0b1220;
+  /* textura de camadas de impressão 3D, bem sutil */
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(148, 163, 184, 0.045) 0px,
+    rgba(148, 163, 184, 0.045) 1px,
+    transparent 1px,
+    transparent 9px
+  );
+  min-height: 100vh;
+  color: #e8edf7;
+  font-family: var(--font-body);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Painel escuro padrão */
+.card {
+  background: #151d2e;
+  border: 1px solid #28324c;
+  border-radius: 1rem;
+  padding: 1.25rem;
+}
+
+/* ---------- Botões estilo "tecla" (afundam ao apertar) ---------- */
+.btn-grande {
+  min-height: 54px;
+  padding: 0 1.25rem;
+  border-radius: 0.9rem;
+  font-weight: 800;
+  font-size: 1.1rem;
+  user-select: none;
+  transition: filter 0.15s ease;
+}
+
+.btn-neon {
+  background: #43d97b;
+  color: #06210f;
+  border: 1px solid #2aa65c;
+  border-bottom: 4px solid #1c7c44;
+}
+.btn-neon:hover {
+  filter: brightness(1.05);
+}
+.btn-neon:active {
+  transform: translateY(2px);
+  border-bottom-width: 2px;
+}
+
+.btn-escuro {
+  background: #1a2333;
+  color: #e8edf7;
+  border: 1px solid #2c3a54;
+  border-bottom: 4px solid #111827;
+}
+.btn-escuro:active {
+  transform: translateY(2px);
+  border-bottom-width: 2px;
+}
+
+/* Mesma tecla, mas vermelha: só pra apagar de vez (o botão que assusta) */
+.btn-perigo {
+  background: #f87171;
+  color: #2b0b0b;
+  border: 1px solid #dc4c4c;
+  border-bottom: 4px solid #a32626;
+}
+.btn-perigo:hover {
+  filter: brightness(1.05);
+}
+.btn-perigo:active {
+  transform: translateY(2px);
+  border-bottom-width: 2px;
+}
+
+/* Título com a fonte de display */
+.display {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+/* Cores de destaque (sem brilho — o brilho é só do número-herói) */
+.neon-verde {
+  color: #4ade80;
+}
+.neon-ciano {
+  color: #22d3ee;
+}
+.neon-perigo {
+  color: #f87171;
+}
+.brilho {
+  text-shadow: 0 0 24px rgba(74, 222, 128, 0.5);
+}
+
+/* Números tabulares em tudo que é dinheiro */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Dinheiro que não vaza da caixa ---------- */
+/*
+  Todo valor em R$ mora dentro de uma `.caixa-valor`. A caixa vira uma régua
+  (container query) e o número usa a largura dela pra escolher o maior tamanho
+  que ainda cabe. Assim "R$ 9,00" e "R$ 12.345,67" ocupam a mesma caixa sem
+  passar por cima da borda — que era o que acontecia com tamanho fixo.
+*/
+.caixa-valor {
+  container-type: inline-size;
+}
+
+.valor {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1.15;
+}
+
+/*
+  Tamanho = largura útil da caixa ÷ (nº de caracteres × largura de um caractere).
+  --n vem do componente <Valor>. Um dígito monoespaçado mede 0.602em (medido);
+  0.68 dá ~13% de folga pra arredondamento e letter-spacing. --valor-folga
+  desconta o que a caixa tem por dentro e a régua não enxerga (padding, borda).
+  O clamp segura o resultado entre o piso legível e a intenção de design.
+*/
+.valor-fit {
+  font-size: clamp(
+    var(--valor-min, 0.55rem),
+    calc((100cqi - var(--valor-folga, 0px)) / (var(--n, 8) * 0.68)),
+    var(--valor-max, 1rem)
+  );
+}
+
+/* ---------- A notinha de papel (tela de resultado) ---------- */
+.recibo {
+  background: var(--papel);
+  color: var(--papel-tinta);
+  border-radius: 10px 10px 0 0;
+  position: relative;
+  box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.8);
+}
+/* serrilha embaixo, como notinha rasgada */
+.recibo::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+  height: 8px;
+  background:
+    linear-gradient(45deg, var(--papel) 5.5px, transparent 0),
+    linear-gradient(-45deg, var(--papel) 5.5px, transparent 0);
+  background-size: 11px 8px;
+  background-position: 0 0;
+  background-repeat: repeat-x;
+}
+.linha-recibo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+/* O rótulo é a parte elástica da linha: quebra em vez de empurrar o valor
+   pra fora do papel. O valor fica inteiro, sempre. */
+.linha-recibo .rotulo {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.linha-recibo .pontos {
+  flex: 1 1 12px;
+  min-width: 12px;
+  border-bottom: 2px dotted rgba(43, 36, 24, 0.35);
+  transform: translateY(-3px);
+}
+.linha-recibo .valor {
+  flex-shrink: 0;
+}
+.tracejado {
+  border-top: 2px dashed rgba(43, 36, 24, 0.3);
+}
+/* carimbo de tinta (o LUCRO carimbado na notinha) */
+.carimbo {
+  display: inline-block;
+  max-width: 100%;
+  transform: rotate(-3deg);
+  border: 3px solid #15803d;
+  color: #15803d;
+  border-radius: 10px;
+  padding: 6px 16px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  line-height: 1.15;
+}
+/* quando vendeu abaixo do custo, o carimbo é vermelho */
+.carimbo-vermelho {
+  border-color: #b91c1c;
+  color: #b91c1c;
+}
+
+input,
+button {
+  font-family: inherit;
+}
+
+/* Foco visível pra quem navega no teclado (não aparece no clique/toque) */
+:where(a, button, input, select, [tabindex]):focus-visible {
+  outline: 3px solid #22d3ee;
+  outline-offset: 2px;
+}
+
+/* Esconde as setinhas dos inputs numéricos */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Bolinha grande e gostosa de arrastar nos sliders */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 32px;
+  width: 32px;
+  border-radius: 9999px;
+  background: #43d97b;
+  border: 3px solid #0b1220;
+  box-shadow: 0 0 0 2px #2aa65c;
+  cursor: grab;
+}
+input[type="range"]::-webkit-slider-thumb:active {
+  cursor: grabbing;
+}
+input[type="range"]::-moz-range-thumb {
+  height: 32px;
+  width: 32px;
+  border-radius: 9999px;
+  background: #43d97b;
+  border: 3px solid #0b1220;
+  box-shadow: 0 0 0 2px #2aa65c;
+  cursor: grab;
+}
+
+/* Confete */
+.confete {
+  position: fixed;
+  top: -20px;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  z-index: 50;
+  border-radius: 3px;
+  animation: cair linear forwards;
+}
+
+@keyframes cair {
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(105vh) rotate(720deg);
+    opacity: 0.9;
+  }
+}
