@@ -1,458 +1,301 @@
-"use client";
-
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import * as db from "@/lib/db";
-import { calcularProduto, acharCor } from "@/lib/calc-produto";
-import type { Config, Cor, Produto } from "@/lib/types";
-import { CORES_PADRAO } from "@/lib/defaults";
-import Confete from "@/components/Confete";
-import Carretel from "@/components/Carretel";
+import { PLANOS, economiaDoAnual } from "@/lib/planos";
+import { brl } from "@/lib/format";
+import { temSessao } from "@/lib/supabase/servidor";
+import { Logo } from "@/components/Marca";
+import { IconeCadeado, IconeCheck } from "@/components/Icones";
 import Valor from "@/components/Valor";
-import Dialogo from "@/components/Dialogo";
-import { Logo, ImpressoraIlustracao } from "@/components/Marca";
-import {
-  IconeAlerta,
-  IconeEngrenagem,
-  IconeLixeira,
-  IconeLupa,
-  IconeMais,
-  IconeMoeda,
-  IconeTrofeu,
-} from "@/components/Icones";
 
-type Aba = "catalogo" | "vendidos";
+/** O que entra na conta = o que o produto é, dito em 5 linhas de nota. */
+const NA_CONTA = [
+  "filamento",
+  "energia",
+  "desgaste da impressora",
+  "embalagem",
+  "reserva pros erros",
+];
 
-/** Caixinha rotulada do card do produto — é ela que serve de régua pro valor. */
-function Etiqueta({
-  rotulo,
-  tom,
-  largo,
-  children,
-}: {
-  rotulo: string;
-  tom?: "neon" | "perigo";
-  largo?: boolean;
-  children: React.ReactNode;
-}) {
-  const cor =
-    tom === "neon"
-      ? "border-neon/30 bg-neon/10"
-      : tom === "perigo"
-      ? "border-perigo/30 bg-perigo/10"
-      : "border-borda bg-painel2";
-  return (
-    <div
-      className={`caixa-valor rounded-lg border px-2 py-1.5 text-center ${cor} ${
-        largo ? "col-span-2 px-3 py-2" : ""
-      }`}
-    >
-      <p className="text-[11px] font-bold uppercase tracking-wide text-mute">
-        {rotulo}
-      </p>
-      {children}
-    </div>
-  );
-}
+/** Os dois pacotes dão exatamente isto — muda só quando você paga. Por isso a
+    lista aparece UMA vez, embaixo dos dois, e não repetida dentro de cada um. */
+const VEM_JUNTO = [
+  "Produtos sem limite, com o preço certo na hora",
+  "Notinha de cada venda, com o lucro de verdade",
+  "Cofrinho somando tudo que você já ganhou",
+  "Suas cores e a sua impressora na conta",
+];
 
-export default function Home() {
-  const router = useRouter();
-  const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [config, setConfig] = useState<Config | null>(null);
-  const [cores, setCores] = useState<Cor[]>(CORES_PADRAO);
-  const [carregou, setCarregou] = useState(false);
-  const [erro, setErro] = useState("");
-  const [empresa, setEmpresa] = useState("");
-  const [aba, setAba] = useState<Aba>("catalogo");
-  const [festa, setFesta] = useState(false);
-  const [aviso, setAviso] = useState("");
-  const [apagando, setApagando] = useState<Produto | null>(null);
-
-  useEffect(() => {
-    let vivo = true;
-    (async () => {
-      try {
-        // Catraca: sem assinatura ativa, a fábrica fica na tela de planos.
-        const assinatura = await db.lerAssinatura();
-        if (!vivo) return;
-        if (!assinatura.ativa) {
-          router.replace("/planos");
-          return;
-        }
-        const [ps, cfg, cs] = await Promise.all([
-          db.lerProdutos(),
-          db.lerConfig(),
-          db.lerCores(),
-        ]);
-        if (!vivo) return;
-        setProdutos(ps);
-        setConfig(cfg);
-        setCores(cs);
-        setCarregou(true);
-      } catch (e: any) {
-        if (vivo) {
-          setErro(String(e?.message ?? e));
-          setCarregou(true);
-        }
-      }
-    })();
-    // Nome da empresa (não trava a tela se falhar).
-    db.lerPerfil()
-      .then((p) => vivo && setEmpresa(p.nomeEmpresa))
-      .catch(() => {});
-    return () => {
-      vivo = false;
-    };
-  }, []);
-
-  const calculos = useMemo(() => {
-    if (!config) return [];
-    return produtos.map((p) => ({
-      produto: p,
-      resultado: calcularProduto(p, config, cores),
-    }));
-  }, [produtos, config, cores]);
-
-  const jaGanhei = calculos.reduce(
-    (s, c) => s + c.resultado.lucro * (c.produto.vendidos || 0),
-    0
-  );
-  const totalVendidos = produtos.reduce((s, p) => s + (p.vendidos || 0), 0);
-  const vendidosLista = calculos.filter((c) => (c.produto.vendidos || 0) > 0);
-
-  function falhou(e: unknown) {
-    console.error(e);
-    setAviso("Confere a internet e tenta de novo!");
-  }
-
-  function apagar(id: string) {
-    const anterior = produtos;
-    setProdutos(produtos.filter((p) => p.id !== id));
-    db.apagarProduto(id).catch((e) => {
-      setProdutos(anterior);
-      falhou(e);
-    });
-  }
-
-  function vender(id: string) {
-    const alvo = produtos.find((p) => p.id === id);
-    if (!alvo) return;
-    const novo = (alvo.vendidos || 0) + 1;
-    const anterior = produtos;
-    setProdutos(produtos.map((p) => (p.id === id ? { ...p, vendidos: novo } : p)));
-    setFesta(true);
-    setTimeout(() => setFesta(false), 1600);
-    db.atualizarVendidos(id, novo).catch((e) => {
-      setProdutos(anterior);
-      falhou(e);
-    });
-  }
-
-  function desfazerVenda(id: string) {
-    const alvo = produtos.find((p) => p.id === id);
-    if (!alvo) return;
-    const novo = Math.max(0, (alvo.vendidos || 0) - 1);
-    const anterior = produtos;
-    setProdutos(produtos.map((p) => (p.id === id ? { ...p, vendidos: novo } : p)));
-    db.atualizarVendidos(id, novo).catch((e) => {
-      setProdutos(anterior);
-      falhou(e);
-    });
-  }
+/**
+ * A porta de entrada do site.
+ *
+ * Enquadramento: no desktop as coisas ficam LADO A LADO (título + notinha,
+ * pacote + pacote). Uma versão anterior empilhou tudo numa coluna de 448px e
+ * a página virou 5 telas de scroll com margens vazias enormes — cada bloco
+ * uma ilha solta. Largura existe pra ser usada; no celular tudo empilha.
+ *
+ * O gostinho é o carimbo: ele promete lucro sem mostrar número. O número é a
+ * isca — quem quiser o dele faz a conta da própria peça no teste.
+ *
+ * Abre pra todo mundo, logado ou não: é o endereço do site.
+ */
+export default async function Entrada() {
+  const logado = await temSessao();
 
   return (
-    <main>
-      <Confete ativo={festa} />
-
-      {/* A marca da fabriquinha */}
-      <header className="mb-6 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Logo size={46} />
-          <div className="min-w-0">
-            <h1 className="display truncate text-2xl font-bold uppercase tracking-wide text-tinta sm:text-3xl">
-              {empresa || "Minha Startup"}
-            </h1>
-            <p className="text-sm font-bold text-mute">
-              fabriquinha de impressão 3D
-            </p>
+    <main className="mx-auto w-full max-w-5xl">
+      {/* ---------- Barra do topo ---------- */}
+      {/* Atravessa a tela toda: o layout prende tudo num max-w-6xl, então ela
+          escapa com left-1/2 + w-screen. Uma barra que para no meio da tela
+          lê como card solto flutuando, não como topo do site.
+          (o -mt-4 come o padding de cima do layout pra ela colar no alto) */}
+      <header className="relative left-1/2 -mt-4 w-screen -translate-x-1/2 border-b border-borda bg-painel/80 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-borda bg-painel2">
+              <Logo size={28} />
+            </span>
+            <div className="min-w-0">
+              <p className="display truncate text-lg font-bold uppercase tracking-wide text-tinta">
+                Minha Startup
+              </p>
+              {/* some no celular em vez de truncar: "calculadora de impre…"
+                  não informa nada e ainda parece defeito */}
+              <p className="hidden truncate text-base font-bold text-mute sm:block">
+                calculadora de impressão 3D
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <Link
-            href="/cores"
-            aria-label="Minhas cores"
-            className="btn-escuro flex h-[54px] w-[54px] items-center justify-center rounded-[0.9rem]"
-          >
-            <Carretel cor="#22d3ee" size={24} />
-          </Link>
-          <Link
-            href="/config"
-            aria-label="Configurações"
-            className="btn-escuro flex h-[54px] w-[54px] items-center justify-center rounded-[0.9rem]"
-          >
-            <IconeEngrenagem size={22} />
-          </Link>
+          {/* o "já tem conta?" mora aqui, não no rodapé: é no topo que quem
+              já é cliente procura a porta */}
+          <div className="flex shrink-0 items-center gap-3">
+            {!logado && (
+              <span className="hidden text-lg font-bold text-mute sm:block">
+                Já tem conta?
+              </span>
+            )}
+            <Link
+              href={logado ? "/fabrica" : "/login"}
+              className="btn-escuro flex h-12 shrink-0 items-center rounded-xl px-5 text-lg font-extrabold"
+            >
+              {logado ? "Minha fábrica" : "Entrar"}
+            </Link>
+          </div>
         </div>
       </header>
 
-      {/* Erro de conexão / setup */}
-      {erro && (
-        <div className="card mb-5 flex items-center gap-3 border-perigo/40">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-perigo/40 bg-perigo/10 text-perigo">
-            <IconeAlerta size={22} />
-          </span>
-          <div className="min-w-0">
-            <p className="font-extrabold text-tinta">
-              Não consegui falar com o banco de dados
-            </p>
-            <p className="mt-0.5 text-sm font-bold text-mute">{erro}</p>
+      {/* ---------- Herói: texto de um lado, a notinha do outro ---------- */}
+      <section className="grid items-center gap-10 py-14 lg:grid-cols-2 lg:gap-12 lg:py-20">
+        <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+          <h1 className="display text-4xl font-bold leading-[1.05] text-tinta sm:text-6xl">
+            Você imprime.
+            <br />
+            <span className="text-neon">Ela faz a conta.</span>
+          </h1>
+          <p className="mt-6 max-w-md text-xl font-bold text-mute sm:text-2xl">
+            Quanto custa e por quanto vender o que sai da sua impressora 3D.
+          </p>
+          {/* lg:max-w-none junto com lg:w-auto: sem ele o max-w-xs continua
+              valendo no desktop e o rótulo quebra em duas linhas */}
+          <Link
+            href="/login?modo=criar&plano=anual"
+            className="btn-grande btn-neon mt-8 flex w-full max-w-xs items-center justify-center whitespace-nowrap text-xl lg:w-auto lg:max-w-none lg:px-9"
+          >
+            Criar a minha fábrica
+          </Link>
+          <p className="mt-4 text-lg font-bold text-mute">
+            A partir de {brl(PLANOS.anual.porMes)} por mês.{" "}
+            <Link href="#pacotes" className="text-ciano underline">
+              Ver os pacotes
+            </Link>
+          </p>
+        </div>
+
+        {/* O gostinho: a notinha */}
+        <div className="recibo mono mx-auto w-full max-w-sm">
+          <p className="display text-center text-[1.3em] font-bold uppercase tracking-[0.18em]">
+            ★ Minha Startup ★
+          </p>
+          <p className="text-center text-[0.8em] font-bold uppercase tracking-widest text-[color:var(--papel-suave)]">
+            a fabriquinha de impressão 3D
+          </p>
+
+          <div className="tracejado my-[1.15em]" />
+
+          <div className="space-y-[0.6em] text-[1em] font-bold">
+            {NA_CONTA.map((item) => (
+              <div key={item} className="linha-recibo">
+                <span className="rotulo uppercase">{item}</span>
+                <span className="pontos" />
+                {/* sem flex aqui: o ✓ precisa sentar na mesma linha de base
+                    do rótulo, senão descola do tracinho pontilhado */}
+                <span className="valor">
+                  <IconeCheck size={16} />
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="tracejado my-[1.15em]" />
+
+          {/* O gostinho mora aqui: o carimbo promete um lucro e não mostra
+              número nenhum. Quem quiser o SEU número desce e faz a conta. */}
+          <div className="caixa-valor mt-[1.4em] text-center">
+            <span className="carimbo">
+              <span className="display block text-[0.8em] uppercase tracking-[0.2em]">
+                e mostra
+              </span>
+              <span className="display block text-[1.4em] uppercase tracking-[0.06em]">
+                seu lucro
+              </span>
+            </span>
           </div>
         </div>
-      )}
+      </section>
 
-      {/* Abas */}
-      <div className="mb-5 grid grid-cols-2 gap-2">
-        <button
-          onClick={() => setAba("catalogo")}
-          className={`btn-grande ${
-            aba === "catalogo" ? "btn-neon" : "btn-escuro"
-          }`}
-        >
-          Meus produtos
-        </button>
-        <button
-          onClick={() => setAba("vendidos")}
-          className={`btn-grande ${
-            aba === "vendidos" ? "btn-neon" : "btn-escuro"
-          }`}
-        >
-          Já vendi
-        </button>
-      </div>
-
-      {!carregou ? (
-        <div className="card flex flex-col items-center py-8 text-center">
-          <Logo size={54} className="animate-wiggle" />
-          <p className="mt-3 font-extrabold text-mute">Ligando a fábrica...</p>
+      {/* ---------- Os pacotes ---------- */}
+      {/* Preços vêm de lib/planos, o mesmo lugar que a cobrança usa: a vitrine
+          não pode prometer um número e o cartão fazer outro. */}
+      <section id="pacotes" className="scroll-mt-4 py-16 sm:py-20">
+        <div className="flex flex-col items-center text-center">
+          <h2 className="display text-3xl font-bold text-tinta sm:text-4xl">
+            Ligue a sua fábrica
+          </h2>
+          <p className="mt-3 text-xl font-bold text-mute">
+            Cancela quando quiser.
+          </p>
         </div>
-      ) : aba === "catalogo" ? (
-        /* ---------- ABA: CATÁLOGO ---------- */
-        produtos.length === 0 ? (
-          !erro && (
-            <div className="card flex flex-col items-center py-8 text-center">
-              <ImpressoraIlustracao size={160} />
-              <p className="display mt-4 text-xl font-bold text-tinta">
-                A fábrica está pronta!
+
+        {/* Lado a lado: preço só se compara vendo os dois juntos. Empilhado,
+            a pessoa tinha que rolar e guardar o primeiro de cabeça. */}
+        <div className="mx-auto mt-10 grid max-w-3xl gap-4 md:grid-cols-2">
+          {/* Anual primeiro: é o que vale mais a pena */}
+          <div className="card card-destaque flex flex-col">
+            {/* altura fixa nos dois cards: o selo "2 meses grátis" engorda
+                esta linha e jogava o preço do anual pra baixo do outro */}
+            <div className="flex h-9 items-center justify-between gap-2">
+              <p className="display text-base font-bold uppercase tracking-widest text-mute">
+                {PLANOS.anual.nome}
               </p>
-              <p className="mt-1 font-bold text-mute">
-                Aperte o botão verde aí embaixo pra fabricar seu primeiro
-                produto.
+              <span className="shrink-0 rounded-full border border-neon/40 bg-neon/10 px-3 py-1 text-base font-extrabold text-neon">
+                2 meses grátis
+              </span>
+            </div>
+            {/* Os dois cards falam em "por mês" de propósito: com R$ 1.200,00
+                gritando aqui e R$ 120,00 no vizinho, o pacote que vale mais a
+                pena parecia 10x mais caro. O valor cheio não some — vai logo
+                abaixo, porque é ele que a pessoa vai ver na fatura. */}
+            <div className="caixa-valor mt-3">
+              <Valor
+                valor={PLANOS.anual.porMes}
+                max="2.75rem"
+                min="1.5rem"
+                sufixo="/mês"
+                className="valor-marca block font-bold text-neon"
+              />
+            </div>
+            <p className="mt-2 text-lg font-bold text-mute">
+              cobrado {brl(PLANOS.anual.preco)} uma vez por ano
+            </p>
+            <div className="flex-1" />
+            {/* a economia é calculada (lib/planos), nunca escrita na mão */}
+            <p className="mt-4 rounded-xl border border-neon/30 bg-neon/10 px-3 py-2.5 text-center text-lg font-extrabold text-neon">
+              você economiza {brl(economiaDoAnual())}
+            </p>
+            <Link
+              href="/login?modo=criar&plano=anual"
+              className="btn-grande btn-neon mt-4 flex w-full items-center justify-center text-xl"
+            >
+              Assinar anual
+            </Link>
+          </div>
+
+          {/* Mensal */}
+          <div className="card flex flex-col">
+            <div className="flex h-9 items-center">
+              <p className="display text-base font-bold uppercase tracking-widest text-mute">
+                {PLANOS.mensal.nome}
               </p>
             </div>
-          )
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {calculos.map(({ produto, resultado }) => (
-              <div
-                key={produto.id}
-                className="card animate-pop overflow-hidden p-0"
+            <div className="caixa-valor mt-3">
+              <Valor
+                valor={PLANOS.mensal.porMes}
+                max="2.75rem"
+                min="1.5rem"
+                sufixo="/mês"
+                className="valor-marca block font-bold text-tinta"
+              />
+            </div>
+            <p className="mt-2 text-lg font-bold text-mute">
+              {PLANOS.mensal.legenda}
+            </p>
+            <div className="flex-1" />
+            {/* espelha a altura do selo de economia do card ao lado, pra os
+                dois botões ficarem na mesma linha */}
+            <p className="mt-4 rounded-xl border border-borda px-3 py-2.5 text-center text-lg font-bold text-mute">
+              dá {brl(PLANOS.mensal.preco * PLANOS.anual.frequenciaMeses)} no ano
+            </p>
+            <Link
+              href="/login?modo=criar&plano=mensal"
+              className="btn-grande btn-escuro mt-6 flex w-full items-center justify-center text-xl"
+            >
+              Assinar mensal
+            </Link>
+          </div>
+        </div>
+
+        {/* O que a pessoa leva — sem isto a página pede R$ 1.200 e nunca diz
+            o que vem na caixa. Uma vez só: os dois pacotes dão o mesmo. */}
+        <div className="card mx-auto mt-4 max-w-3xl">
+          <p className="display text-center text-xl font-bold text-tinta">
+            Os dois vêm com
+          </p>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2 sm:gap-x-6">
+            {VEM_JUNTO.map((item) => (
+              <li
+                key={item}
+                className="flex items-start gap-3 text-lg font-bold text-mute"
               >
-                <div className="flex items-stretch">
-                  {/* fios de filamento do produto */}
-                  <div className="flex w-2.5 shrink-0 flex-col">
-                    {(produto.coresIds.length
-                      ? produto.coresIds.slice(0, 4)
-                      : ["cinza"]
-                    ).map((cid, i) => (
-                      <span
-                        key={i}
-                        className="flex-1"
-                        style={{ background: acharCor(cid, cores).hex }}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="min-w-0 flex-1 p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <h2 className="display min-w-0 truncate text-lg font-bold text-tinta">
-                        {produto.nome}
-                      </h2>
-                      <button
-                        onClick={() => setApagando(produto)}
-                        aria-label="Apagar produto"
-                        className="shrink-0 rounded-lg p-1.5 text-mute hover:text-perigo active:scale-90"
-                      >
-                        <IconeLixeira size={18} />
-                      </button>
-                    </div>
-
-                    {produto.vendidos > 0 && (
-                      <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-neon/30 bg-neon/10 px-2.5 py-0.5 text-xs font-extrabold text-neon">
-                        <IconeTrofeu size={13} />
-                        {produto.vendidos} vendido
-                        {produto.vendidos > 1 ? "s" : ""}
-                      </p>
-                    )}
-
-                    {/* custo e preço lado a lado; o lucro é a estrela, ocupa
-                        a linha inteira e fica vermelho se der prejuízo */}
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <Etiqueta rotulo="custo">
-                        <Valor
-                          valor={resultado.custoTotal}
-                          max="0.95rem"
-                          className="block font-bold text-tinta"
-                        />
-                      </Etiqueta>
-                      <Etiqueta rotulo="vender">
-                        <Valor
-                          valor={resultado.precoVenda}
-                          max="0.95rem"
-                          className="block font-bold text-ciano"
-                        />
-                      </Etiqueta>
-                      <Etiqueta
-                        rotulo={resultado.lucro < 0 ? "prejuízo" : "lucro"}
-                        tom={resultado.lucro < 0 ? "perigo" : "neon"}
-                        largo
-                      >
-                        <Valor
-                          valor={Math.abs(resultado.lucro)}
-                          max="1.6rem"
-                          className={`block font-bold ${
-                            resultado.lucro < 0 ? "text-perigo" : "text-neon"
-                          }`}
-                        />
-                      </Etiqueta>
-                    </div>
-
-                    <div className="mt-3 flex gap-2">
-                      <Link
-                        href={`/resultado?id=${produto.id}`}
-                        className="btn-escuro flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-extrabold"
-                      >
-                        <IconeLupa size={16} /> A conta
-                      </Link>
-                      <button
-                        onClick={() => vender(produto.id)}
-                        className="btn-neon flex flex-[1.3] items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-extrabold"
-                      >
-                        <IconeMoeda size={16} /> Vendi 1!
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )
-      ) : /* ---------- ABA: JÁ VENDI ---------- */
-      vendidosLista.length === 0 ? (
-        <div className="card flex flex-col items-center py-8 text-center">
-          <IconeMoeda size={56} className="text-mute" />
-          <p className="display mt-4 text-xl font-bold text-tinta">
-            Ainda não vendeu nada
-          </p>
-          <p className="mt-1 font-bold text-mute">
-            Quando vender um produto, aperte{" "}
-            <span className="text-neon">“Vendi 1!”</span> lá na aba de produtos.
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* O cofrinho da empresa */}
-          <div className="card caixa-valor mb-4 text-center">
-            <p className="display text-xs font-bold uppercase tracking-[0.2em] text-mute">
-              cofrinho da {empresa || "empresa"}
-            </p>
-            <Valor
-              valor={Math.abs(jaGanhei)}
-              max="3.5rem"
-              min="1.5rem"
-              className={`mt-1 block font-bold ${
-                jaGanhei < 0 ? "text-perigo" : "brilho text-neon"
-              }`}
-            />
-            <p className="mt-1 font-bold text-mute">
-              ganho de verdade, com {totalVendidos} venda
-              {totalVendidos > 1 ? "s" : ""} 🎉
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {vendidosLista.map(({ produto, resultado }) => (
-              <div key={produto.id} className="card flex items-center gap-3">
-                <span className="flex shrink-0 -space-x-2.5">
-                  {produto.coresIds.slice(0, 3).map((id, idx) => (
-                    <Carretel
-                      key={idx}
-                      cor={acharCor(id, cores).hex}
-                      size={30}
-                    />
-                  ))}
+                <span className="mt-1 shrink-0 text-neon">
+                  <IconeCheck size={20} />
                 </span>
-                <div className="caixa-valor min-w-0 flex-1">
-                  <p className="display truncate text-lg font-bold text-tinta">
-                    {produto.nome}
-                  </p>
-                  <p className="text-sm font-bold text-mute">
-                    {produto.vendidos}× vendido · ganhou{" "}
-                    <Valor
-                      valor={resultado.lucro * produto.vendidos}
-                      max="0.875rem"
-                      className="text-neon"
-                    />
-                  </p>
-                </div>
-                <button
-                  onClick={() => desfazerVenda(produto.id)}
-                  aria-label="Tirar uma venda"
-                  title="Errei, tirar uma venda"
-                  className="btn-escuro shrink-0 rounded-lg px-3 py-2 font-extrabold"
-                >
-                  −1
-                </button>
-              </div>
+                {item}
+              </li>
             ))}
-          </div>
-        </>
-      )}
-
-      {/* Botão flutuante Novo Produto (com um degradê pro conteúdo não
-          encostar nele quando a lista é comprida) */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-fundo via-fundo to-transparent pt-10">
-        <div className="mx-auto max-w-xl px-4 pb-4">
-          <Link
-            href="/novo"
-            className="btn-grande btn-neon pointer-events-auto flex w-full items-center justify-center gap-2 text-xl"
-          >
-            <IconeMais size={22} /> Novo Produto
-          </Link>
+          </ul>
         </div>
-      </div>
 
-      {apagando && (
-        <Dialogo
-          tom="perigo"
-          icone={<IconeLixeira size={26} />}
-          titulo={`Apagar “${apagando.nome}”?`}
-          texto="A continha dele some da fábrica pra sempre."
-          confirmar="Sim, apagar"
-          cancelar="Não, deixa"
-          onConfirmar={() => apagar(apagando.id)}
-          onFechar={() => setApagando(null)}
-        />
-      )}
+        <p className="mx-auto mt-6 flex max-w-3xl items-center justify-center gap-2 text-center text-lg font-bold text-mute">
+          <IconeCadeado size={20} className="shrink-0" />O cartão é digitado no
+          Mercado Pago, nunca aqui.
+        </p>
+      </section>
 
-      {aviso && (
-        <Dialogo
-          tom="perigo"
-          titulo="Não consegui salvar"
-          texto={aviso}
-          onFechar={() => setAviso("")}
-        />
-      )}
+      {/* ---------- O final: última chamada ---------- */}
+      {/* Fala com quem AINDA NÃO TEM CONTA, que é pra quem esta página existe.
+          Nada de "seus produtos estão te esperando" aqui: essa pessoa não tem
+          produto nenhum. Quem já entrou tem o atalho na barra do topo. */}
+      <section className="flex flex-col items-center border-t border-borda py-16 text-center sm:py-20">
+        <Logo size={60} />
+        <p className="display mt-5 text-3xl font-bold leading-tight text-tinta sm:text-4xl">
+          Pronto pra ligar a sua fábrica?
+        </p>
+        <p className="mt-3 max-w-sm text-xl font-bold text-mute">
+          Preço certo em toda peça que sair da sua impressora.
+        </p>
+        <Link
+          href="/login?modo=criar&plano=anual"
+          className="btn-grande btn-neon mt-8 flex w-full max-w-md items-center justify-center text-xl"
+        >
+          Comece agora
+        </Link>
+      </section>
+
+      {/* O "já tem conta? entrar" subiu pra barra do topo; aqui fica só a
+          assinatura, pra a página ter fim em vez de simplesmente parar. */}
+      <footer className="border-t border-borda py-8 text-center">
+        <p className="text-lg font-bold text-mute">
+          Minha Startup · a calculadora da sua fabriquinha 3D
+        </p>
+      </footer>
     </main>
   );
 }

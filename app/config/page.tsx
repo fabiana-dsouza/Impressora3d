@@ -92,7 +92,7 @@ export default function Configuracoes() {
     setSaindo(true);
     try {
       await sair();
-      window.location.href = "/login";
+      window.location.href = "/"; // sai pra entrada do site, não pro formulário
     } catch (e) {
       console.error(e);
       setSaindo(false);

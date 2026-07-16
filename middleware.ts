@@ -1,14 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-
-/** Rotas que não exigem login (as rotas /api validam a sessão sozinhas). */
-const PUBLICAS = ["/login", "/auth", "/api"];
+import { destinoDaRota, rotaPublica } from "@/lib/rotas";
 
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const { pathname } = request.nextUrl;
-  const ehPublica = PUBLICAS.some((p) => pathname.startsWith(p));
+  const ehPublica = rotaPublica(pathname);
 
   // Supabase ainda não configurado: manda tudo pro /login,
   // que mostra o passo a passo de configuração.
@@ -41,12 +39,8 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && !ehPublica) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-  if (user && pathname.startsWith("/login")) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
+  const destino = destinoDaRota(pathname, Boolean(user));
+  if (destino) return NextResponse.redirect(new URL(destino, request.url));
 
   return response;
 }

@@ -29,5 +29,7 @@ export async function GET(request: Request) {
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  return NextResponse.redirect(`${origin}/`);
+  // A fábrica devolve pro /planos quem ainda não pagou, então este é o
+  // destino certo tanto pra conta nova quanto pra quem já assina.
+  return NextResponse.redirect(`${origin}/fabrica`);
 }

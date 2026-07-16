@@ -102,7 +102,7 @@ function Resultado() {
           Não achei esse produto...
         </p>
         <Link
-          href="/"
+          href="/fabrica"
           className="btn-grande btn-neon mt-6 inline-flex items-center gap-2"
         >
           <IconeCasa size={20} /> Voltar pra fábrica
@@ -128,7 +128,7 @@ function Resultado() {
       {/* só o botão de voltar — a página é a notinha */}
       <div className="mb-4">
         <Link
-          href="/"
+          href="/fabrica"
           aria-label="Voltar pra fábrica"
           className="btn-escuro flex h-12 w-12 items-center justify-center rounded-xl"
         >
@@ -137,19 +137,21 @@ function Resultado() {
       </div>
 
       {/* ---------- A NOTINHA ---------- */}
-      <div className="recibo mono px-5 py-6">
-        <p className="display text-center text-lg font-bold uppercase tracking-[0.18em]">
+      {/* Tudo aqui dentro mede em `em`: quem manda no tamanho é o
+          font-size fluido de .recibo, que acompanha a largura da tela. */}
+      <div className="recibo mono">
+        <p className="display text-center text-[1.3em] font-bold uppercase tracking-[0.18em]">
           ★ {empresa || "Minha Startup"} ★
         </p>
-        <p className="text-center text-xs font-bold uppercase tracking-widest text-[color:var(--papel-suave)]">
+        <p className="text-center text-[0.8em] font-bold uppercase tracking-widest text-[color:var(--papel-suave)]">
           nota da fabriquinha 3D
         </p>
 
-        <div className="tracejado my-4" />
+        <div className="tracejado my-[1.15em]" />
 
-        <p className="text-sm font-extrabold uppercase">{produto.nome}</p>
+        <p className="text-[1em] font-extrabold uppercase">{produto.nome}</p>
 
-        <div className="mt-3 space-y-2 text-sm font-bold">
+        <div className="mt-[0.9em] space-y-[0.6em] text-[1em] font-bold">
           <div className="linha-recibo">
             <span className="rotulo uppercase">
               material {varias ? "(média)" : ""} ·{" "}
@@ -158,7 +160,7 @@ function Resultado() {
             <span className="pontos" />
             <span className="valor">{brl(r.custoMaterial)}</span>
           </div>
-          <p className="-mt-1 text-xs text-[color:var(--papel-suave)]">
+          <p className="-mt-[0.3em] text-[0.85em] text-[color:var(--papel-suave)]">
             {nomesCores}
           </p>
           <div className="linha-recibo">
@@ -187,14 +189,14 @@ function Resultado() {
           </div>
         </div>
 
-        <div className="tracejado my-4" />
+        <div className="tracejado my-[1.15em]" />
 
-        <div className="linha-recibo text-base font-extrabold">
+        <div className="linha-recibo text-[1.1em] font-extrabold">
           <span className="rotulo uppercase">custo total</span>
           <span className="pontos" />
           <span className="valor">{brl(r.custoTotal)}</span>
         </div>
-        <div className="linha-recibo mt-2 text-lg font-extrabold">
+        <div className="linha-recibo mt-[0.6em] text-[1.25em] font-extrabold">
           <span className="rotulo uppercase">vendido por</span>
           <span className="pontos" />
           <span className="valor">{brl(r.precoVenda)}</span>
@@ -202,16 +204,16 @@ function Resultado() {
 
         {/* Carimbo do resultado: rótulo em cima, número embaixo — em uma linha
             só ele encostava nas bordas do papel quando o valor era grande. */}
-        <div className="caixa-valor mt-5 text-center">
+        <div className="caixa-valor mt-[1.4em] text-center">
           <span className={`carimbo ${prejuizo ? "carimbo-vermelho" : ""}`}>
-            <span className="display block text-[0.7rem] uppercase tracking-[0.25em]">
+            <span className="display block text-[0.75em] uppercase tracking-[0.25em]">
               {prejuizo ? "prejuízo" : "seu lucro"}
             </span>
             {/* folga = padding + borda do carimbo, que a régua não enxerga */}
             <Valor
               valor={Math.abs(r.lucro)}
-              max="1.75rem"
-              min="1rem"
+              max="2.2em"
+              min="1.15em"
               folga="44px"
               className="block"
             />

@@ -1,10 +1,9 @@
 "use client";
 
-import { brl } from "@/lib/format";
 import Valor from "./Valor";
 
 /**
- * "Por quanto você vendeu?" — o preço sugerido vem preenchido, mas quem manda
+ * "Por quanto você vendeu?" — o preço indicado vem preenchido, mas quem manda
  * é a criança: às vezes o preço final foi outro, e a notinha mostra a verdade.
  */
 export default function PrecoVendido({
@@ -75,13 +74,13 @@ export default function PrecoVendido({
         </button>
       </div>
 
-      {/* atalho pra voltar ao preço que o app sugeriu */}
+      {/* atalho pra voltar ao preço indicado (que aparece logo acima) */}
       {!igualSugerido && precoSugerido > 0 && (
         <button
           onClick={() => onChange(String(precoSugerido))}
           className="mx-auto mt-3 block rounded-lg px-3 py-1 text-sm font-bold text-ciano underline"
         >
-          usar o preço sugerido ({brl(precoSugerido)})
+          voltar pro preço indicado
         </button>
       )}
 

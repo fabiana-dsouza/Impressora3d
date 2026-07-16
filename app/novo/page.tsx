@@ -2,16 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { lerConfig, lerCores, criarProduto } from "@/lib/db";
+import { lerConfig, lerCores, criarProduto, SemAssinaturaError } from "@/lib/db";
 import { CORES_PADRAO } from "@/lib/defaults";
-import { calcular, taxasDaConfig, horasDecimais } from "@/lib/calc";
+import { calcular, taxasDaConfig, horasDecimais, travarMargem } from "@/lib/calc";
 import { precoMedioPorGrama } from "@/lib/calc-produto";
 import { novoId } from "@/lib/format";
 import type { Config, Cor, Produto, Unidade } from "@/lib/types";
 import PrecoVendido from "@/components/PrecoVendido";
 import Valor from "@/components/Valor";
 import Carretel from "@/components/Carretel";
+import Dialogo from "@/components/Dialogo";
 import {
+  IconeCadeado,
   IconeEtiqueta,
   IconeMoeda,
   IconeRelogio,
@@ -37,6 +39,7 @@ export default function NovoProduto() {
   const [minutos, setMinutos] = useState(0);
   const [precoVendido, setPrecoVendido] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const [trancada, setTrancada] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -136,7 +139,7 @@ export default function NovoProduto() {
   }
   function voltar() {
     setErro("");
-    if (passo === 0) router.push("/");
+    if (passo === 0) router.push("/fabrica");
     else setPasso((p) => p - 1);
   }
 
@@ -167,6 +170,12 @@ export default function NovoProduto() {
     } catch (e) {
       console.error(e);
       setSalvando(false);
+      // Sem assinatura o banco recusa o INSERT. Culpar a internet aqui manda a
+      // criança conferir o wi-fi por um problema que é de pagamento.
+      if (e instanceof SemAssinaturaError) {
+        setTrancada(true);
+        return;
+      }
       setErro("Não consegui salvar. Confere a internet e tenta de novo!");
     }
   }
@@ -309,10 +318,10 @@ export default function NovoProduto() {
           </Passo>
         )}
 
-        {/* PASSO 4 — Custo + preço que realmente vendeu */}
-        {passo === 3 && resultado && (
+        {/* PASSO 4 — Custo, preço indicado e o preço que realmente vendeu */}
+        {passo === 3 && resultado && config && (
           <Passo pergunta="Quanto ficou?" icone={<IconeMoeda size={30} />}>
-            {/* Quanto custou pra fazer */}
+            {/* 1. Quanto custou pra fazer */}
             <div className="caixa-valor rounded-xl border border-borda bg-painel2 p-4 text-center">
               <p className="text-xs font-extrabold uppercase tracking-widest text-mute">
                 custo pra fabricar
@@ -321,11 +330,32 @@ export default function NovoProduto() {
                 valor={resultado.custoTotal}
                 max="1.875rem"
                 min="1.25rem"
+                folga="36px"
                 className="mt-0.5 block font-bold text-tinta"
               />
             </div>
 
-            {/* Por quanto vendeu de verdade */}
+            {/* 2. O preço que a calculadora indica — o destaque da tela */}
+            <div className="caixa-valor mt-3 rounded-xl border-2 border-neon/40 bg-neon/10 p-4 text-center">
+              <p className="text-xs font-extrabold uppercase tracking-widest text-mute">
+                preço indicado
+              </p>
+              <Valor
+                valor={resultado.precoVenda}
+                max="2.75rem"
+                min="1.5rem"
+                folga="38px"
+                className="mt-0.5 block font-bold text-neon"
+              />
+              {/* a margem travada é a que o cálculo usou de verdade — o valor
+                  cru da config podia dizer 10% e o preço acima mostrar 15% */}
+              <p className="mt-1 text-sm font-bold text-mute">
+                o custo + {Math.round(travarMargem(config.margemPadrao) * 100)}%
+                de lucro pra você
+              </p>
+            </div>
+
+            {/* 3. E, se quiser, o preço que ela vendeu de verdade */}
             <div className="mt-3">
               <PrecoVendido
                 custoTotal={resultado.custoTotal}
@@ -367,6 +397,18 @@ export default function NovoProduto() {
           </button>
         )}
       </div>
+
+      {trancada && (
+        <Dialogo
+          icone={<IconeCadeado size={26} />}
+          titulo="A fábrica ainda está trancada"
+          texto="Seu produto não foi salvo porque a assinatura ainda não está ativa. É só assinar que a fábrica liga!"
+          confirmar="Quero assinar"
+          cancelar="Agora não"
+          onConfirmar={() => router.push("/planos")}
+          onFechar={() => setTrancada(false)}
+        />
+      )}
     </main>
   );
 }

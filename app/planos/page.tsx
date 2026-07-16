@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import * as db from "@/lib/db";
-import { PLANOS, type PlanoId } from "@/lib/planos";
+import { PLANOS, ehPlanoId, type PlanoId } from "@/lib/planos";
 import { brl } from "@/lib/format";
 import { Logo } from "@/components/Marca";
 import { IconeCadeado, IconeCheck, IconeSair } from "@/components/Icones";
@@ -30,12 +30,23 @@ function Planos() {
   const params = useSearchParams();
   const voltouDoPagamento = params.get("volta") === "1";
 
+  // Veio da criação de conta com um plano já escolhido na vitrine: pra ela,
+  // "criar conta" e "assinar" são o mesmo gesto, então o pagamento abre
+  // sozinho em vez de pedir que ela escolha o plano de novo.
+  const planoBruto = params.get("plano");
+  const planoAuto: PlanoId | null =
+    params.get("auto") === "1" && ehPlanoId(planoBruto) ? planoBruto : null;
+
   const [assinatura, setAssinatura] = useState<db.Assinatura | null>(null);
   const [carregou, setCarregou] = useState(false);
   const [indo, setIndo] = useState<PlanoId | null>(null);
   const [erro, setErro] = useState("");
   const [precisaSetup, setPrecisaSetup] = useState(false);
   const [conferindo, setConferindo] = useState(voltouDoPagamento);
+  /* Trava do disparo automático. É `ref`, e não `state`, de propósito: o
+     StrictMode roda o efeito duas vezes antes de um setState commitar, e o
+     preço de escorregar aqui é uma cobrança duplicada no Mercado Pago. */
+  const jaDisparou = useRef(false);
 
   // Carrega o status; se voltou do pagamento, confere de novo por ~30s
   // (o aviso do Mercado Pago pode levar alguns segundos pra chegar).
@@ -74,7 +85,7 @@ function Planos() {
     };
   }, [voltouDoPagamento]);
 
-  async function assinar(plano: PlanoId) {
+  const assinar = useCallback(async (plano: PlanoId) => {
     setErro("");
     setIndo(plano);
     try {
@@ -98,11 +109,20 @@ function Planos() {
       setErro("Não consegui abrir o pagamento. Tenta de novo em instantes!");
       setIndo(null);
     }
-  }
+  }, []);
+
+  // Abre o pagamento sozinho — uma vez só. Se falhar, a trava segura o
+  // gatilho e a pessoa cai na tela normal pra tentar no braço.
+  useEffect(() => {
+    if (!planoAuto || jaDisparou.current || !carregou || conferindo) return;
+    if (assinatura?.ativa) return;
+    jaDisparou.current = true;
+    assinar(planoAuto);
+  }, [planoAuto, carregou, conferindo, assinatura, assinar]);
 
   async function sairDaConta() {
     await db.sair().catch(() => {});
-    window.location.href = "/login";
+    window.location.href = "/";
   }
 
   if (!carregou || conferindo) {
@@ -118,6 +138,22 @@ function Planos() {
     );
   }
 
+  // Pagamento abrindo sozinho: sem isto a lista de planos pisca por um
+  // instante antes do redirect. Se der erro, cai na tela normal.
+  if (planoAuto && !assinatura?.ativa && !erro && !precisaSetup) {
+    return (
+      <main className="flex min-h-[70vh] flex-col items-center justify-center text-center">
+        <Logo size={64} className="animate-wiggle" />
+        <p className="display mt-4 text-xl font-bold text-tinta">
+          Conta criada! 🎉
+        </p>
+        <p className="mt-1 font-extrabold text-mute">
+          Abrindo o pagamento no Mercado Pago...
+        </p>
+      </main>
+    );
+  }
+
   // Já pagou: só confirma e manda pra fábrica.
   if (assinatura?.ativa) {
     return (
@@ -126,19 +162,22 @@ function Planos() {
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-neon/40 bg-neon/10 text-neon">
             <IconeCheck size={28} />
           </span>
+          {/* Este é o "comece agora": a conta existe, o pagamento passou e a
+              pessoa nunca entrou na fábrica. É aqui que cabe dizer que ela
+              está ligada — não na vitrine, onde ninguém tem conta ainda. */}
           <h1 className="display mt-4 text-2xl font-bold text-tinta">
-            Assinatura ativa!
+            Sua fábrica está ligada!
           </h1>
           <p className="mt-1 font-bold text-mute">
             {assinatura.plano
-              ? `Plano ${PLANOS[assinatura.plano].nome.toLowerCase()} — a fábrica é toda sua.`
-              : "A fábrica é toda sua."}
+              ? `Plano ${PLANOS[assinatura.plano].nome.toLowerCase()} — agora é só fabricar.`
+              : "Agora é só fabricar."}
           </p>
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/fabrica")}
             className="btn-grande btn-neon mt-5 w-full text-xl"
           >
-            Entrar na fábrica
+            Comece agora
           </button>
         </div>
       </main>

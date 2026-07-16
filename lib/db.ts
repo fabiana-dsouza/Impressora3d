@@ -273,12 +273,39 @@ export async function lerProduto(id: string): Promise<Produto | null> {
   return data ? paraProduto(data) : null;
 }
 
+/**
+ * O banco recusou criar o produto porque a assinatura não está ativa.
+ * Existe pra tela poder dizer "falta assinar" em vez de culpar a internet.
+ */
+export class SemAssinaturaError extends Error {
+  constructor() {
+    super("Sua assinatura não está ativa.");
+    this.name = "SemAssinaturaError";
+  }
+}
+
+/** 42501 = insufficient_privilege: a linha esbarrou na Row Level Security. */
+function ehErroDeRls(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === "42501" || /row-level security/i.test(error.message ?? "")
+  );
+}
+
 export async function criarProduto(produto: Produto): Promise<void> {
   const uid = await idUsuario();
   const { error } = await supabase()
     .from("produtos")
     .insert(deProduto(produto, uid));
-  if (error) throw error;
+  if (!error) return;
+
+  // A policy "cria produto com assinatura" exige assinatura_ativa(). Mas RLS
+  // também barra outras coisas, então só acusamos falta de assinatura depois
+  // de confirmar que é isso mesmo — chutar aqui seria mentir pra criança.
+  if (ehErroDeRls(error)) {
+    const assinatura = await lerAssinatura().catch(() => null);
+    if (assinatura && !assinatura.ativa) throw new SemAssinaturaError();
+  }
+  throw error;
 }
 
 export async function apagarProduto(id: string): Promise<void> {

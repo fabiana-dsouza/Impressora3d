@@ -25,3 +25,16 @@ export type PlanoId = keyof typeof PLANOS;
 export function ehPlanoId(x: unknown): x is PlanoId {
   return x === "mensal" || x === "anual";
 }
+
+/**
+ * Quanto o anual economiza contra pagar 12 meses do mensal.
+ *
+ * Calculado, nunca escrito na mão: é uma promessa de dinheiro na vitrine, e
+ * um número chumbado aqui viraria propaganda enganosa no dia que alguém
+ * mexesse no preço e esquecesse de mexer no texto.
+ */
+export function economiaDoAnual(): number {
+  return (
+    PLANOS.mensal.preco * PLANOS.anual.frequenciaMeses - PLANOS.anual.preco
+  );
+}

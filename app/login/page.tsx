@@ -1,9 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { supabase, supabaseConfigurado } from "@/lib/supabase/client";
 import { emailDaEmpresa, empresaExiste } from "@/lib/db";
+import { PLANOS, ehPlanoId, type PlanoId } from "@/lib/planos";
+import { brl } from "@/lib/format";
 import { Logo } from "@/components/Marca";
 import { IconeCadeado, IconeChave } from "@/components/Icones";
 import {
@@ -53,9 +56,35 @@ function erroAmigavel(msg: string): string {
   return `Algo deu errado (${msg})`;
 }
 
-export default function Login() {
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<Carregando />}>
+      <Login />
+    </Suspense>
+  );
+}
+
+function Carregando() {
+  return (
+    <main className="flex min-h-[70vh] flex-col items-center justify-center">
+      <Logo size={64} className="animate-wiggle" />
+      <p className="mt-4 font-extrabold text-mute">Um segundinho...</p>
+    </main>
+  );
+}
+
+function Login() {
   const router = useRouter();
-  const [modo, setModo] = useState<Modo>("entrar");
+  const params = useSearchParams();
+
+  // O plano vem da vitrine (/): criar conta e assinar é um passo só, então
+  // a escolha feita lá viaja até aqui e daqui até o Mercado Pago.
+  const planoBruto = params.get("plano");
+  const plano: PlanoId | null = ehPlanoId(planoBruto) ? planoBruto : null;
+
+  const [modo, setModo] = useState<Modo>(
+    params.get("modo") === "criar" ? "criar" : "entrar"
+  );
 
   const [empresa, setEmpresa] = useState(""); // usado no cadastro
   const [email, setEmail] = useState(""); // usado no cadastro
@@ -67,6 +96,11 @@ export default function Login() {
   const [carregando, setCarregando] = useState(false);
 
   if (!supabaseConfigurado()) return <SetupSupabase />;
+
+  /** Conta nova nasce sem assinatura: o próximo passo é sempre pagar. */
+  function destinoDaContaNova(): string {
+    return plano ? `/planos?plano=${plano}&auto=1` : "/planos";
+  }
 
   function trocarModo(m: Modo) {
     setModo(m);
@@ -104,7 +138,7 @@ export default function Login() {
         password: senha,
       });
       if (error) throw error;
-      router.push("/");
+      router.push("/fabrica");
       router.refresh();
     } catch (e: any) {
       setErro(erroAmigavel(String(e?.message ?? e)));
@@ -155,10 +189,15 @@ export default function Login() {
       });
       if (error) throw error;
       if (data.session) {
-        router.push("/");
+        // Já logada: emenda direto no pagamento, sem passar pela fábrica.
+        router.push(destinoDaContaNova());
         router.refresh();
       } else {
-        setAviso("Quase lá! Abra seu email e clique no link de confirmação.");
+        // Sem sessão = o Supabase exige confirmar o email. O pagamento fica
+        // pra depois do clique no link; o /fabrica devolve ela pro /planos.
+        setAviso(
+          "Quase lá! Abra seu email e clique no link de confirmação. Depois disso a gente abre o pagamento."
+        );
       }
     } catch (e: any) {
       setErro(erroAmigavel(String(e?.message ?? e)));
@@ -202,6 +241,27 @@ export default function Login() {
 
         {modo === "criar" ? (
           <>
+            {/* O que ela está prestes a assinar. Sem isto, o botão "criar
+                minha conta" abriria uma cobrança de surpresa. */}
+            {plano && (
+              <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-neon/40 bg-neon/10 p-3">
+                <div className="min-w-0">
+                  <p className="display font-bold text-neon">
+                    Plano {PLANOS[plano].nome.toLowerCase()}
+                  </p>
+                  <p className="mono text-sm font-bold text-mute">
+                    {brl(PLANOS[plano].preco)}
+                    {plano === "anual" ? "/ano" : "/mês"}
+                  </p>
+                </div>
+                <Link
+                  href="/#precos"
+                  className="shrink-0 rounded-lg px-2 py-1 text-sm font-bold text-ciano underline"
+                >
+                  trocar
+                </Link>
+              </div>
+            )}
             <Campo
               rotulo="Nome da sua empresa"
               value={empresa}
@@ -266,13 +326,23 @@ export default function Login() {
             ? "Um segundinho..."
             : modo === "entrar"
             ? "Entrar"
+            : plano
+            ? "Criar conta e assinar"
             : "Criar minha conta"}
         </button>
+
+        {modo === "criar" && (
+          <p className="mt-3 text-center text-sm font-bold text-mute">
+            No próximo passo você paga na página do Mercado Pago.
+          </p>
+        )}
       </div>
 
       <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-sm font-bold text-mute">
         <IconeCadeado size={15} />
-        Seus produtos ficam guardados na nuvem, só você vê.
+        {modo === "criar"
+          ? "O cartão é digitado no Mercado Pago — nunca aqui."
+          : "Seus produtos ficam guardados na nuvem, só você vê."}
       </p>
     </main>
   );

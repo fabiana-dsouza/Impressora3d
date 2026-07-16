@@ -43,6 +43,16 @@ body {
   padding: 1.25rem;
 }
 
+/* O card que a gente quer que a pessoa escolha. Um respiro de neon em volta
+   faz ele saltar sem precisar ser maior que o vizinho — dois cards de alturas
+   diferentes numa comparação de preço só atrapalham a leitura. */
+.card-destaque {
+  border-color: rgba(74, 222, 128, 0.5);
+  box-shadow:
+    0 0 0 1px rgba(74, 222, 128, 0.3),
+    0 20px 55px -22px rgba(74, 222, 128, 0.55);
+}
+
 /* ---------- Botões estilo "tecla" (afundam ao apertar) ---------- */
 .btn-grande {
   min-height: 54px;
@@ -153,8 +163,27 @@ body {
   );
 }
 
+/*
+  O preço da vitrine é peça de marca, não linha de nota. Na mono, o espaço
+  fixo entre "R$" e o número abre um buraco do tamanho de um dígito e os dois
+  parecem coisas separadas. Vem depois de .valor de propósito: é ele que este
+  seletor precisa vencer (mesma especificidade, ganha quem vem por último).
+*/
+.valor-marca {
+  font-family: var(--font-display);
+}
+
 /* ---------- A notinha de papel (tela de resultado) ---------- */
+/*
+  A nota inteira mede em `em`, e este é o único knob: a fonte acompanha a
+  largura da tela, então o papel encolhe junto no celular pequeno em vez de
+  espremer o rótulo contra o valor e quebrar a palavra no meio.
+  O teto (0.875rem) é o tamanho de projeto, atingido quando a nota bate no
+  seu max-w-md e para de crescer.
+*/
 .recibo {
+  font-size: clamp(0.8rem, 3.6vw, 1rem);
+  padding: 1.7em 1.5em;
   background: var(--papel);
   color: var(--papel-tinta);
   border-radius: 10px 10px 0 0;
@@ -179,7 +208,7 @@ body {
 .linha-recibo {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 0.7em;
 }
 /* O rótulo é a parte elástica da linha: quebra em vez de empurrar o valor
    pra fora do papel. O valor fica inteiro, sempre. */
@@ -188,10 +217,10 @@ body {
   overflow-wrap: anywhere;
 }
 .linha-recibo .pontos {
-  flex: 1 1 12px;
-  min-width: 12px;
+  flex: 1 1 0.9em;
+  min-width: 0.9em;
   border-bottom: 2px dotted rgba(43, 36, 24, 0.35);
-  transform: translateY(-3px);
+  transform: translateY(-0.25em);
 }
 .linha-recibo .valor {
   flex-shrink: 0;
