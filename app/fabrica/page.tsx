@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as db from "@/lib/db";
 import { calcularProduto, acharCor } from "@/lib/calc-produto";
 import type { Config, Cor, Produto } from "@/lib/types";
-import { CORES_PADRAO } from "@/lib/defaults";
+import { CORES_PADRAO, EMPRESA_PADRAO } from "@/lib/defaults";
 import Confete from "@/components/Confete";
 import Carretel from "@/components/Carretel";
 import Valor from "@/components/Valor";
@@ -171,7 +171,7 @@ export default function Home() {
           <Logo size={46} />
           <div className="min-w-0">
             <h1 className="display truncate text-2xl font-bold uppercase tracking-wide text-tinta sm:text-3xl">
-              {empresa || "Minha Startup"}
+              {empresa || EMPRESA_PADRAO}
             </h1>
             <p className="text-sm font-bold text-mute">
               fabriquinha de impressão 3D

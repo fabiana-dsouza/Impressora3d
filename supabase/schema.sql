@@ -1,5 +1,5 @@
 -- =====================================================================
--- Calculadora da Minha Startup — schema do Supabase
+-- Preço de Fábrica — schema do Supabase
 -- Cole este arquivo inteiro no SQL Editor do seu projeto e clique RUN.
 -- Pode rodar mais de uma vez sem problema (é idempotente).
 -- =====================================================================

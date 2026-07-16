@@ -7,6 +7,7 @@ import { supabase, supabaseConfigurado } from "@/lib/supabase/client";
 import { emailDaEmpresa, empresaExiste } from "@/lib/db";
 import { PLANOS, ehPlanoId, type PlanoId } from "@/lib/planos";
 import { brl } from "@/lib/format";
+import { MARCA, TAGLINE } from "@/lib/marca";
 import { Logo } from "@/components/Marca";
 import { IconeCadeado, IconeChave } from "@/components/Icones";
 import {
@@ -20,8 +21,11 @@ type Modo = "entrar" | "criar";
 /** Traduz os erros do Supabase pra linguagem de criança. */
 function erroAmigavel(msg: string): string {
   const m = msg.toLowerCase();
+  // O Supabase não diz se foi a senha ou se a conta não existe (de propósito:
+  // dizer entregaria quem tem cadastro). Então a mensagem cobre os dois casos
+  // em vez de mandar "tenta de novo" pra quem nunca vai acertar.
   if (m.includes("invalid login credentials"))
-    return "Email/empresa ou senha errados. Tenta de novo!";
+    return "Não achei essa conta. Confere a senha — ou assine, se ainda não tem conta.";
   if (m.includes("already registered") || m.includes("already been registered"))
     return "Esse email já tem conta! É só entrar.";
   if (m.includes("perfis_email_unico"))
@@ -209,13 +213,13 @@ function Login() {
   return (
     <main className="mx-auto flex min-h-[80vh] w-full max-w-md flex-col justify-center">
       <div className="mb-6 flex flex-col items-center text-center">
-        <Logo size={72} />
+        <Link href="/" aria-label="Voltar pra entrada">
+          <Logo size={72} />
+        </Link>
         <h1 className="display mt-3 text-3xl font-bold uppercase tracking-wide text-tinta">
-          Minha Startup
+          {MARCA}
         </h1>
-        <p className="mt-1 font-bold text-mute">
-          sua fabriquinha de impressão 3D
-        </p>
+        <p className="mt-1 font-bold text-mute">{TAGLINE}</p>
       </div>
 
       <div className="card">
@@ -334,6 +338,18 @@ function Login() {
         {modo === "criar" && (
           <p className="mt-3 text-center text-sm font-bold text-mute">
             No próximo passo você paga na página do Mercado Pago.
+          </p>
+        )}
+
+        {/* A saída pra quem não tem conta. Sem isto, quem chega aqui achando
+            que tem cadastro leva "senha errada" e fica preso na tela: só quem
+            assinou tem login, e a porta pra isso são os pacotes. */}
+        {modo === "entrar" && (
+          <p className="mt-4 text-center font-bold text-mute">
+            Ainda não tem conta?{" "}
+            <Link href="/#pacotes" className="text-ciano underline">
+              Escolha um pacote
+            </Link>
           </p>
         )}
       </div>

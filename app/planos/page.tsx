@@ -42,6 +42,7 @@ function Planos() {
   const [indo, setIndo] = useState<PlanoId | null>(null);
   const [erro, setErro] = useState("");
   const [precisaSetup, setPrecisaSetup] = useState(false);
+  const [precisaDeploy, setPrecisaDeploy] = useState(false);
   const [conferindo, setConferindo] = useState(voltouDoPagamento);
   /* Trava do disparo automático. É `ref`, e não `state`, de propósito: o
      StrictMode roda o efeito duas vezes antes de um setState commitar, e o
@@ -100,6 +101,12 @@ function Planos() {
         setIndo(null);
         return;
       }
+      // Rodando em localhost: o MP não alcança este site.
+      if (resposta.status === 503) {
+        setPrecisaDeploy(true);
+        setIndo(null);
+        return;
+      }
       if (!resposta.ok || !dados?.url) {
         throw new Error(dados?.detalhe ?? "sem-url");
       }
@@ -140,7 +147,7 @@ function Planos() {
 
   // Pagamento abrindo sozinho: sem isto a lista de planos pisca por um
   // instante antes do redirect. Se der erro, cai na tela normal.
-  if (planoAuto && !assinatura?.ativa && !erro && !precisaSetup) {
+  if (planoAuto && !assinatura?.ativa && !erro && !precisaSetup && !precisaDeploy) {
     return (
       <main className="flex min-h-[70vh] flex-col items-center justify-center text-center">
         <Logo size={64} className="animate-wiggle" />
@@ -292,6 +299,24 @@ function Planos() {
         <p className="mt-4 animate-pop rounded-xl border border-perigo/40 bg-perigo/15 p-3 text-center font-extrabold text-perigo">
           {erro}
         </p>
+      )}
+
+      {precisaDeploy && (
+        <div className="card mt-4 border-ciano/40">
+          <p className="display font-bold text-ciano">
+            Só dá pra assinar no site publicado
+          </p>
+          <p className="mt-1 text-sm font-bold text-mute">
+            Recado pra pessoa adulta responsável: este site está rodando em{" "}
+            <code className="rounded bg-painel2 px-1.5 py-0.5 text-ciano">
+              localhost
+            </code>
+            , e o Mercado Pago não alcança essa máquina — nem pra devolver a
+            pessoa depois de pagar, nem pra avisar que o pagamento passou. Faça
+            o deploy, cadastre o webhook no painel do MP e assine por lá. O
+            passo a passo está no README.
+          </p>
+        </div>
       )}
 
       {precisaSetup && (

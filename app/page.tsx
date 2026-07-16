@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PLANOS, economiaDoAnual } from "@/lib/planos";
 import { brl } from "@/lib/format";
+import { MARCA, TAGLINE } from "@/lib/marca";
 import { temSessao } from "@/lib/supabase/servidor";
 import { Logo } from "@/components/Marca";
 import { IconeCadeado, IconeCheck } from "@/components/Icones";
@@ -55,12 +56,12 @@ export default async function Entrada() {
             </span>
             <div className="min-w-0">
               <p className="display truncate text-lg font-bold uppercase tracking-wide text-tinta">
-                Minha Startup
+                {MARCA}
               </p>
               {/* some no celular em vez de truncar: "calculadora de impre…"
                   não informa nada e ainda parece defeito */}
               <p className="hidden truncate text-base font-bold text-mute sm:block">
-                calculadora de impressão 3D
+                {TAGLINE}
               </p>
             </div>
           </div>
@@ -111,11 +112,14 @@ export default async function Entrada() {
 
         {/* O gostinho: a notinha */}
         <div className="recibo mono mx-auto w-full max-w-sm">
+          {/* Nome de exemplo, não a nossa marca: esta nota é a que a
+              CRIANÇA vai imprimir, com a empresa dela em cima. É o mesmo
+              exemplo que o /novo usa no placeholder. */}
           <p className="display text-center text-[1.3em] font-bold uppercase tracking-[0.18em]">
-            ★ Minha Startup ★
+            ★ Dino Prints ★
           </p>
           <p className="text-center text-[0.8em] font-bold uppercase tracking-widest text-[color:var(--papel-suave)]">
-            a fabriquinha de impressão 3D
+            nota da fabriquinha 3D
           </p>
 
           <div className="tracejado my-[1.15em]" />
@@ -293,7 +297,7 @@ export default async function Entrada() {
           assinatura, pra a página ter fim em vez de simplesmente parar. */}
       <footer className="border-t border-borda py-8 text-center">
         <p className="text-lg font-bold text-mute">
-          Minha Startup · a calculadora da sua fabriquinha 3D
+          {MARCA} · {TAGLINE}
         </p>
       </footer>
     </main>

@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { PLANOS, ehPlanoId } from "@/lib/planos";
+import { MARCA } from "@/lib/marca";
+import { ehLocal } from "@/lib/site";
 
 /**
  * Cria a assinatura recorrente no Mercado Pago e devolve o link de
@@ -51,6 +53,17 @@ export async function POST(request: Request) {
   const site =
     process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
 
+  /*
+   * O Mercado Pago precisa ALCANÇAR este site: a `back_url` é pra onde ele
+   * devolve a pessoa depois de pagar, e é obrigatória em assinatura sem plano.
+   * De `localhost` ele não alcança — e o webhook que libera a conta também
+   * nunca chega. Sem esta trava, a criação até pode passar e a pessoa paga de
+   * verdade num fluxo que nunca vai ativar a conta dela.
+   */
+  if (ehLocal(site)) {
+    return NextResponse.json({ erro: "site-nao-publicado" }, { status: 503 });
+  }
+
   const resposta = await fetch("https://api.mercadopago.com/preapproval", {
     method: "POST",
     headers: {
@@ -58,7 +71,7 @@ export async function POST(request: Request) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      reason: `Calculadora da Minha Startup — plano ${p.nome.toLowerCase()}`,
+      reason: `${MARCA} — plano ${p.nome.toLowerCase()}`,
       // amarra o pagamento ao usuário: é assim que o webhook sabe quem liberar
       external_reference: `${user.id}|${plano}`,
       payer_email: user.email,

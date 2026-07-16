@@ -4,7 +4,7 @@
  * só conversa com ele usando a sessão do usuário logado.
  */
 import { supabase } from "./supabase/client";
-import { CONFIG_PADRAO, CORES_PADRAO } from "./defaults";
+import { CONFIG_PADRAO, CORES_PADRAO, EMPRESA_PADRAO } from "./defaults";
 import type { Config, Cor, Produto } from "./types";
 import {
   lerConfig as lerConfigLocal,
@@ -348,7 +348,7 @@ export async function lerPerfil(): Promise<{ nomeEmpresa: string }> {
   return {
     nomeEmpresa: data?.nome_empresa
       ? String(data.nome_empresa)
-      : "Minha Startup",
+      : EMPRESA_PADRAO,
   };
 }
 

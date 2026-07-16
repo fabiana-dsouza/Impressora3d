@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { MARCA, TAGLINE } from "@/lib/marca";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Calculadora da Minha Startup",
+  title: `${MARCA} — ${TAGLINE}`,
   description:
     "Descubra quanto custa e por quanto vender seus produtos de impressão 3D!",
 };

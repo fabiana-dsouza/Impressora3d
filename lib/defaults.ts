@@ -3,6 +3,15 @@ import type { Config, Cor } from "./types";
 /** Margem mínima ABSOLUTA — trava rígida, nunca pode baixar disso. */
 export const MARGEM_MINIMA = 0.15;
 
+/**
+ * Nome que aparece enquanto a empresa da pessoa não carregou.
+ *
+ * NÃO é o nome do produto (esse mora em lib/marca.ts). Os dois já foram a
+ * mesma string, e por isso a notinha — que é da fábrica DELA — saía carimbada
+ * com a nossa marca.
+ */
+export const EMPRESA_PADRAO = "Minha Fábrica";
+
 export const CONFIG_PADRAO: Config = {
   potenciaWatts: 100, // A1 consome ~100 W
   tarifaKwh: 0.85, // R$ 0,85 por kWh

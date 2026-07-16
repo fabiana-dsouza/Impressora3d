@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { lerConfig, lerCores, lerProduto, lerPerfil } from "@/lib/db";
 import { calcularProduto, acharCor } from "@/lib/calc-produto";
 import { brl, num } from "@/lib/format";
-import { CORES_PADRAO } from "@/lib/defaults";
+import { CORES_PADRAO, EMPRESA_PADRAO } from "@/lib/defaults";
 import type { Config, Cor, Produto, Unidade } from "@/lib/types";
 import Confete from "@/components/Confete";
 import Valor from "@/components/Valor";
@@ -141,7 +141,7 @@ function Resultado() {
           font-size fluido de .recibo, que acompanha a largura da tela. */}
       <div className="recibo mono">
         <p className="display text-center text-[1.3em] font-bold uppercase tracking-[0.18em]">
-          ★ {empresa || "Minha Startup"} ★
+          ★ {empresa || EMPRESA_PADRAO} ★
         </p>
         <p className="text-center text-[0.8em] font-bold uppercase tracking-widest text-[color:var(--papel-suave)]">
           nota da fabriquinha 3D

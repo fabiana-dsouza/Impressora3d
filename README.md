@@ -1,4 +1,4 @@
-# 🚀 Calculadora da Minha Startup
+# 🚀 Preço de Fábrica
 
 Uma calculadora de custos e preços para produtos de **impressão 3D** (feita
 pensando na **Bambu Lab A1**), simples e divertida o suficiente para uma
@@ -89,14 +89,25 @@ guarda cartão de ninguém.
    `assinaturas` e a trava). Edite a lista de **cortesia** no final do
    arquivo com os emails da família (contas liberadas sem pagar).
 5. Depois do deploy, em **Suas integrações → sua aplicação → Webhooks**,
-   cadastre a URL `https://SEU-SITE.vercel.app/api/mercadopago` para o
-   evento de **assinaturas (preapproval)**. É esse aviso que libera a conta
-   sozinha quando o pagamento confirma.
-6. Preencha `NEXT_PUBLIC_SITE_URL` com a URL pública do site.
+   cadastre a URL `https://SEU-SITE.vercel.app/api/mercadopago` e marque
+   **os dois** eventos abaixo. É esse aviso que libera a conta sozinha
+   quando o pagamento confirma:
+   - `subscription_preapproval` — a assinatura foi criada, pausada ou
+     cancelada;
+   - `subscription_authorized_payment` — a cobrança de cada mês passou.
+6. Preencha `NEXT_PUBLIC_SITE_URL` com a URL pública do site — ou **deixe
+   em branco na Vercel**, que o app usa a URL da própria requisição.
+   Nunca deixe `localhost` aí: é a `back_url` que o Mercado Pago usa pra
+   devolver quem pagou.
 
-**Importante:** o webhook só funciona com o site publicado (o Mercado Pago
-não alcança `localhost`). Pra testar antes do deploy, dá pra liberar uma
-conta na mão no SQL Editor:
+**Importante:** assinar só funciona com o site publicado. O Mercado Pago não
+alcança `localhost` — nem pra devolver a pessoa depois do pagamento
+(`back_url`, obrigatória em assinatura sem plano), nem pra avisar o webhook.
+Por isso o `/api/assinar` recusa na cara dura quando o site é local, em vez de
+deixar alguém pagar num fluxo que nunca ia ativar a conta.
+
+Pra testar a fábrica antes do deploy, dá pra liberar uma conta na mão no SQL
+Editor:
 
 ```sql
 insert into public.assinaturas (user_id, status)
