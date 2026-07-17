@@ -312,7 +312,7 @@ function Login() {
                   </p>
                 </div>
                 <Link
-                  href="/#precos"
+                  href="/#pacotes"
                   className="shrink-0 rounded-lg px-2 py-1 text-sm font-bold text-ciano underline"
                 >
                   trocar

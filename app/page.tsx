@@ -41,6 +41,19 @@ const VEM_JUNTO = [
 export default async function Entrada() {
   const logado = await temSessao();
 
+  /*
+   * Pra onde vai o botão de assinar.
+   *   - SEM conta: cadastro já com o plano escolhido (criar conta = assinar).
+   *   - JÁ logado: direto pro /planos, que dispara o Mercado Pago sozinho.
+   * Mandar quem já está logado pro /login era o furo: o middleware chuta
+   * logado que cai em /login pra /fabrica, então o botão "abria a fábrica"
+   * em vez do pagamento.
+   */
+  const assinarHref = (plano: "anual" | "mensal") =>
+    logado
+      ? `/planos?plano=${plano}&auto=1`
+      : `/login?modo=criar&plano=${plano}`;
+
   return (
     <main className="mx-auto w-full max-w-5xl">
       {/* ---------- Barra do topo ---------- */}
@@ -97,7 +110,7 @@ export default async function Entrada() {
           {/* lg:max-w-none junto com lg:w-auto: sem ele o max-w-xs continua
               valendo no desktop e o rótulo quebra em duas linhas */}
           <Link
-            href="/login?modo=criar&plano=anual"
+            href={assinarHref("anual")}
             className="btn-grande btn-neon mt-8 flex w-full max-w-xs items-center justify-center whitespace-nowrap text-xl lg:w-auto lg:max-w-none lg:px-9"
           >
             Criar a minha fábrica
@@ -205,7 +218,7 @@ export default async function Entrada() {
               você economiza {brl(economiaDoAnual())}
             </p>
             <Link
-              href="/login?modo=criar&plano=anual"
+              href={assinarHref("anual")}
               className="btn-grande btn-neon mt-4 flex w-full items-center justify-center text-xl"
             >
               Assinar anual
@@ -238,7 +251,7 @@ export default async function Entrada() {
               dá {brl(PLANOS.mensal.preco * PLANOS.anual.frequenciaMeses)} no ano
             </p>
             <Link
-              href="/login?modo=criar&plano=mensal"
+              href={assinarHref("mensal")}
               className="btn-grande btn-escuro mt-6 flex w-full items-center justify-center text-xl"
             >
               Assinar mensal
@@ -286,7 +299,7 @@ export default async function Entrada() {
           Preço certo em toda peça que sair da sua impressora.
         </p>
         <Link
-          href="/login?modo=criar&plano=anual"
+          href={assinarHref("anual")}
           className="btn-grande btn-neon mt-8 flex w-full max-w-md items-center justify-center text-xl"
         >
           Comece agora
