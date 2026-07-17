@@ -229,7 +229,7 @@ export default function NovoProduto() {
         {passo === 1 && (
           <Passo
             pergunta="Quais cores você usou?"
-            icone={<Carretel cor="#22d3ee" size={32} />}
+            icone={<Carretel cor="#5B8DEF" size={32} />}
           >
             <p className="mb-4 text-center font-bold text-mute">
               Toque em uma ou em várias — o que você misturou!
@@ -451,7 +451,7 @@ function UnidadeToggle({
           key={u}
           onClick={() => onTrocar(u)}
           className={`rounded-xl px-4 py-3 text-lg font-extrabold transition-colors ${
-            unidade === u ? "bg-neon text-fundo" : "text-mute"
+            unidade === u ? "bg-brand text-brand-ink" : "text-mute"
           }`}
         >
           {u}

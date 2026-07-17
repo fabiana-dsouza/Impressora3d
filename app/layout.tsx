@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b1220",
+  themeColor: "#F7F7F7",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -23,7 +23,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <head>
-        {/* Fonte divertida e arredondada */}
+        {/* Fredoka (display arredondado) + Rubik (corpo) + Spectral itálica
+            (a palavra-acento serifada, o toque do portrait.so — escolhida no
+            lugar da Fraunces, que é fonte saturada demais). */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
@@ -31,7 +33,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         />
         <link
-          href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Rubik:wght@500;600;700;800;900&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@1,400;1,500;1,600&family=Fredoka:wght@500;600;700&family=Rubik:wght@500;600;700;800;900&display=swap"
           rel="stylesheet"
         />
       </head>

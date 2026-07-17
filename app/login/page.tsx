@@ -260,7 +260,7 @@ function Login() {
             <button
               onClick={() => trocarModo("entrar")}
               className={`rounded-xl py-3 font-extrabold transition-colors ${
-                modo === "entrar" ? "bg-neon text-fundo" : "text-mute"
+                modo === "entrar" ? "bg-brand text-brand-ink" : "text-mute"
               }`}
             >
               Entrar
@@ -268,7 +268,7 @@ function Login() {
             <button
               onClick={() => trocarModo("criar")}
               className={`rounded-xl py-3 font-extrabold transition-colors ${
-                modo === "criar" ? "bg-neon text-fundo" : "text-mute"
+                modo === "criar" ? "bg-brand text-brand-ink" : "text-mute"
               }`}
             >
               Criar conta

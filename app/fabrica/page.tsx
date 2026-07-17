@@ -184,7 +184,7 @@ export default function Home() {
             aria-label="Minhas cores"
             className="btn-escuro flex h-[54px] w-[54px] items-center justify-center rounded-[0.9rem]"
           >
-            <Carretel cor="#22d3ee" size={24} />
+            <Carretel cor="#5B8DEF" size={24} />
           </Link>
           <Link
             href="/config"

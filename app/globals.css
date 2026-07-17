@@ -4,13 +4,24 @@
 
 :root {
   --font-body: "Rubik", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Chakra Petch", "Rubik", system-ui, sans-serif;
+  --font-display: "Fredoka", "Rubik", system-ui, sans-serif;
+  --font-serif: "Spectral", Georgia, serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
     monospace;
   /* a notinha de papel */
-  --papel: #f4edda;
-  --papel-tinta: #2b2418;
-  --papel-suave: #92876b;
+  --papel: #fffdf6;
+  --papel-tinta: #40372a;
+  --papel-suave: #9c9078;
+  /* o arco-íris de filamento — o acento iridescente do portrait relido */
+  --arco: linear-gradient(
+    90deg,
+    #ff5fa2,
+    #ff9e4d,
+    #ffd84d,
+    #4ed17e,
+    #4da6ff,
+    #a46bff
+  );
 }
 
 html,
@@ -20,108 +31,205 @@ body {
 }
 
 body {
-  background-color: #0b1220;
-  /* textura de camadas de impressão 3D, bem sutil */
-  background-image: repeating-linear-gradient(
-    0deg,
-    rgba(148, 163, 184, 0.045) 0px,
-    rgba(148, 163, 184, 0.045) 1px,
-    transparent 1px,
-    transparent 9px
-  );
+  /* Canvas off-white e arejado do portrait. Limpo — a cor mora nos blocos
+     e no arco-íris, não no fundo. */
+  background-color: #f7f7f7;
   min-height: 100vh;
-  color: #e8edf7;
+  color: #08304c;
   font-family: var(--font-body);
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Painel escuro padrão */
-.card {
-  background: #151d2e;
-  border: 1px solid #28324c;
-  border-radius: 1rem;
-  padding: 1.25rem;
+/* A aurora pastel do herói — blooms suaves de cor, como no portrait.so. */
+.aurora {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 55% at 22% 30%, rgba(255, 143, 196, 0.4), transparent 70%),
+    radial-gradient(40% 50% at 78% 24%, rgba(122, 205, 255, 0.42), transparent 70%),
+    radial-gradient(42% 55% at 62% 72%, rgba(150, 232, 180, 0.4), transparent 72%),
+    radial-gradient(38% 52% at 30% 78%, rgba(215, 190, 255, 0.42), transparent 72%),
+    radial-gradient(30% 40% at 88% 68%, rgba(255, 214, 128, 0.38), transparent 72%);
+  filter: blur(6px);
+  /* Difunde a cor no branco da página: rumo às bordas os blooms se esvaem, em
+     vez de encontrarem o #F7F7F7 num limite. Como .aurora é compartilhada, esse
+     padrão vale pra página inteira (herói + última chamada) de um lugar só. */
+  -webkit-mask-image: radial-gradient(120% 120% at 50% 45%, #000 52%, transparent 84%);
+  mask-image: radial-gradient(120% 120% at 50% 45%, #000 52%, transparent 84%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
-/* O card que a gente quer que a pessoa escolha. Um respiro de neon em volta
-   faz ele saltar sem precisar ser maior que o vizinho — dois cards de alturas
-   diferentes numa comparação de preço só atrapalham a leitura. */
-.card-destaque {
-  border-color: rgba(74, 222, 128, 0.5);
+/* O "big modal" do herói: vidro fosco por onde a aurora brilha. Uso pontual
+   e proposital do glass — cria a profundidade das peças que vazam pelos cantos,
+   não é enfeite. */
+.painel-vidro {
+  position: relative;
+  border-radius: 2.5rem;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.62),
+    rgba(255, 255, 255, 0.48)
+  );
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  backdrop-filter: blur(18px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.7);
   box-shadow:
-    0 0 0 1px rgba(74, 222, 128, 0.3),
-    0 20px 55px -22px rgba(74, 222, 128, 0.55);
+    0 40px 90px -50px rgba(8, 48, 76, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
-/* ---------- Botões estilo "tecla" (afundam ao apertar) ---------- */
+/* ---------- Cards arredondados com sombra macia ---------- */
+.card {
+  background: #ffffff;
+  border: 1px solid #ececef;
+  border-radius: 1.5rem;
+  padding: 1.25rem;
+  box-shadow: 0 18px 40px -28px rgba(8, 48, 76, 0.35);
+}
+
+/* O card de pacote em destaque ganha o anel arco-íris (a assinatura). */
+.card-destaque {
+  border: 3px solid transparent;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    var(--arco) border-box;
+  box-shadow: 0 26px 55px -26px rgba(164, 107, 255, 0.55);
+}
+
+/* Bloco de cor sólida grandão (as seções coloridas). */
+.bloco {
+  position: relative;
+  border-radius: 1.75rem;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+}
+.bloco-empilhado::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 1.75rem;
+  transform: translate(10px, 12px);
+  background: rgba(8, 48, 76, 0.1);
+}
+
+/* ---------- Botões-pílula que afundam de leve ao apertar ---------- */
 .btn-grande {
   min-height: 54px;
-  padding: 0 1.25rem;
-  border-radius: 0.9rem;
+  padding: 0 1.5rem;
+  border-radius: 9999px;
   font-weight: 800;
   font-size: 1.1rem;
+  line-height: 1;
   user-select: none;
-  transition: filter 0.15s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.15s ease;
 }
 
+/* Primário: azul-petróleo, texto branco. */
 .btn-neon {
-  background: #43d97b;
-  color: #06210f;
-  border: 1px solid #2aa65c;
-  border-bottom: 4px solid #1c7c44;
+  background: #08304c;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 5px 0 0 #061f33;
 }
 .btn-neon:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.12);
 }
 .btn-neon:active {
-  transform: translateY(2px);
-  border-bottom-width: 2px;
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 0 #061f33;
 }
 
+/* Secundário: pílula clara. */
 .btn-escuro {
-  background: #1a2333;
-  color: #e8edf7;
-  border: 1px solid #2c3a54;
-  border-bottom: 4px solid #111827;
+  background: #ffffff;
+  color: #08304c;
+  border: 1px solid #e2e2e6;
+  box-shadow: 0 4px 0 0 #e6e6e9;
+}
+.btn-escuro:hover {
+  filter: brightness(0.99);
 }
 .btn-escuro:active {
-  transform: translateY(2px);
-  border-bottom-width: 2px;
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 0 #e6e6e9;
 }
 
-/* Mesma tecla, mas vermelha: só pra apagar de vez (o botão que assusta) */
+/* Perigo: coral, só pra apagar de vez. */
 .btn-perigo {
-  background: #f87171;
-  color: #2b0b0b;
-  border: 1px solid #dc4c4c;
-  border-bottom: 4px solid #a32626;
+  background: #f2565c;
+  color: #fff;
+  border: none;
+  box-shadow: 0 5px 0 0 #c23a40;
 }
 .btn-perigo:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.04);
 }
 .btn-perigo:active {
-  transform: translateY(2px);
-  border-bottom-width: 2px;
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 0 #c23a40;
 }
 
-/* Título com a fonte de display */
+/* CTA especial do herói: pílula azul com o ANEL arco-íris (a assinatura). */
+.cta-arco {
+  position: relative;
+  border: 3px solid transparent;
+  background:
+    linear-gradient(#08304c, #08304c) padding-box,
+    var(--arco) border-box;
+  color: #fff;
+  border-radius: 9999px;
+  transition: transform 0.12s ease, filter 0.15s ease;
+}
+.cta-arco:hover {
+  filter: brightness(1.12);
+}
+.cta-arco:active {
+  transform: translateY(2px);
+}
+
+/* Pílula branca com borda arco-íris (o botão "leve" da vitrine). */
+.pilula-arco {
+  border: 2.5px solid transparent;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    var(--arco) border-box;
+  color: #08304c;
+  border-radius: 9999px;
+}
+
+/* Título com a fonte de display arredondada, tracking apertado (à la portrait) */
 .display {
   font-family: var(--font-display);
-  letter-spacing: 0.01em;
+  letter-spacing: -0.02em;
 }
 
-/* Cores de destaque (sem brilho — o brilho é só do número-herói) */
+/* A palavra-acento: serifada em itálico com um traço arco-íris embaixo. */
+.acento {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 500;
+  background-image: var(--arco);
+  background-repeat: no-repeat;
+  background-position: 0 96%;
+  background-size: 100% 0.14em;
+  padding-bottom: 0.05em;
+}
+
+/* Cores de destaque */
 .neon-verde {
-  color: #4ade80;
+  color: #0f9d6e;
 }
 .neon-ciano {
-  color: #22d3ee;
+  color: #2f6be0;
 }
 .neon-perigo {
-  color: #f87171;
+  color: #e5484d;
 }
 .brilho {
-  text-shadow: 0 0 24px rgba(74, 222, 128, 0.5);
+  text-shadow: 0 6px 26px rgba(15, 157, 110, 0.3);
 }
 
 /* Números tabulares em tudo que é dinheiro */
@@ -131,30 +239,15 @@ body {
 }
 
 /* ---------- Dinheiro que não vaza da caixa ---------- */
-/*
-  Todo valor em R$ mora dentro de uma `.caixa-valor`. A caixa vira uma régua
-  (container query) e o número usa a largura dela pra escolher o maior tamanho
-  que ainda cabe. Assim "R$ 9,00" e "R$ 12.345,67" ocupam a mesma caixa sem
-  passar por cima da borda — que era o que acontecia com tamanho fixo.
-*/
 .caixa-valor {
   container-type: inline-size;
 }
-
 .valor {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   line-height: 1.15;
 }
-
-/*
-  Tamanho = largura útil da caixa ÷ (nº de caracteres × largura de um caractere).
-  --n vem do componente <Valor>. Um dígito monoespaçado mede 0.602em (medido);
-  0.68 dá ~13% de folga pra arredondamento e letter-spacing. --valor-folga
-  desconta o que a caixa tem por dentro e a régua não enxerga (padding, borda).
-  O clamp segura o resultado entre o piso legível e a intenção de design.
-*/
 .valor-fit {
   font-size: clamp(
     var(--valor-min, 0.55rem),
@@ -162,35 +255,20 @@ body {
     var(--valor-max, 1rem)
   );
 }
-
-/*
-  O preço da vitrine é peça de marca, não linha de nota. Na mono, o espaço
-  fixo entre "R$" e o número abre um buraco do tamanho de um dígito e os dois
-  parecem coisas separadas. Vem depois de .valor de propósito: é ele que este
-  seletor precisa vencer (mesma especificidade, ganha quem vem por último).
-*/
 .valor-marca {
   font-family: var(--font-display);
 }
 
 /* ---------- A notinha de papel (tela de resultado) ---------- */
-/*
-  A nota inteira mede em `em`, e este é o único knob: a fonte acompanha a
-  largura da tela, então o papel encolhe junto no celular pequeno em vez de
-  espremer o rótulo contra o valor e quebrar a palavra no meio.
-  O teto (0.875rem) é o tamanho de projeto, atingido quando a nota bate no
-  seu max-w-md e para de crescer.
-*/
 .recibo {
   font-size: clamp(0.8rem, 3.6vw, 1rem);
   padding: 1.7em 1.5em;
   background: var(--papel);
   color: var(--papel-tinta);
-  border-radius: 10px 10px 0 0;
+  border-radius: 14px 14px 0 0;
   position: relative;
-  box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 22px 48px -22px rgba(8, 48, 76, 0.5);
 }
-/* serrilha embaixo, como notinha rasgada */
 .recibo::after {
   content: "";
   position: absolute;
@@ -210,8 +288,6 @@ body {
   align-items: baseline;
   gap: 0.7em;
 }
-/* O rótulo é a parte elástica da linha: quebra em vez de empurrar o valor
-   pra fora do papel. O valor fica inteiro, sempre. */
 .linha-recibo .rotulo {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -219,32 +295,30 @@ body {
 .linha-recibo .pontos {
   flex: 1 1 0.9em;
   min-width: 0.9em;
-  border-bottom: 2px dotted rgba(43, 36, 24, 0.35);
+  border-bottom: 2px dotted rgba(64, 55, 42, 0.32);
   transform: translateY(-0.25em);
 }
 .linha-recibo .valor {
   flex-shrink: 0;
 }
 .tracejado {
-  border-top: 2px dashed rgba(43, 36, 24, 0.3);
+  border-top: 2px dashed rgba(64, 55, 42, 0.28);
 }
-/* carimbo de tinta (o LUCRO carimbado na notinha) */
 .carimbo {
   display: inline-block;
   max-width: 100%;
   transform: rotate(-3deg);
-  border: 3px solid #15803d;
-  color: #15803d;
-  border-radius: 10px;
+  border: 3px solid #0f9d6e;
+  color: #0f9d6e;
+  border-radius: 12px;
   padding: 6px 16px;
   font-weight: 900;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   line-height: 1.15;
 }
-/* quando vendeu abaixo do custo, o carimbo é vermelho */
 .carimbo-vermelho {
-  border-color: #b91c1c;
-  color: #b91c1c;
+  border-color: #c23a40;
+  color: #c23a40;
 }
 
 input,
@@ -252,9 +326,15 @@ button {
   font-family: inherit;
 }
 
-/* Foco visível pra quem navega no teclado (não aparece no clique/toque) */
+/* Placeholder com contraste de verdade */
+::placeholder {
+  color: #6b7683;
+  opacity: 1;
+}
+
+/* Foco visível pra quem navega no teclado */
 :where(a, button, input, select, [tabindex]):focus-visible {
-  outline: 3px solid #22d3ee;
+  outline: 3px solid #2f6be0;
   outline-offset: 2px;
 }
 
@@ -275,9 +355,9 @@ input[type="range"]::-webkit-slider-thumb {
   height: 32px;
   width: 32px;
   border-radius: 9999px;
-  background: #43d97b;
-  border: 3px solid #0b1220;
-  box-shadow: 0 0 0 2px #2aa65c;
+  background: #08304c;
+  border: 4px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(8, 48, 76, 0.35);
   cursor: grab;
 }
 input[type="range"]::-webkit-slider-thumb:active {
@@ -287,9 +367,9 @@ input[type="range"]::-moz-range-thumb {
   height: 32px;
   width: 32px;
   border-radius: 9999px;
-  background: #43d97b;
-  border: 3px solid #0b1220;
-  box-shadow: 0 0 0 2px #2aa65c;
+  background: #08304c;
+  border: 4px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(8, 48, 76, 0.35);
   cursor: grab;
 }
 
@@ -304,7 +384,6 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 3px;
   animation: cair linear forwards;
 }
-
 @keyframes cair {
   0% {
     transform: translateY(-20px) rotate(0deg);
@@ -313,5 +392,16 @@ input[type="range"]::-moz-range-thumb {
   100% {
     transform: translateY(105vh) rotate(720deg);
     opacity: 0.9;
+  }
+}
+
+/* Quem pediu menos movimento, recebe menos movimento. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

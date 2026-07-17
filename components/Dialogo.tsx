@@ -44,7 +44,7 @@ export default function Dialogo({
       aria-modal="true"
       aria-label={titulo}
       onClick={onFechar}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-fundo/80 p-3 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-tinta/40 p-3 backdrop-blur-sm sm:items-center"
     >
       <div
         onClick={(e) => e.stopPropagation()}

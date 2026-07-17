@@ -3,13 +3,12 @@
 import { useEffect, useState } from "react";
 
 const CORES = [
-  "#4ade80",
-  "#22d3ee",
-  "#38bdf8",
-  "#2dd4bf",
-  "#fb923c",
-  "#facc15",
-  "#f87171",
+  "#AB9FF2", // lavanda da marca
+  "#5B8DEF", // azul
+  "#2FC98A", // menta
+  "#FFC94D", // sol
+  "#F49CC4", // rosa
+  "#F2565C", // coral
 ];
 
 interface Peca {
