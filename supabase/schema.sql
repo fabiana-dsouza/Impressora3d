@@ -310,6 +310,6 @@ insert into public.assinaturas (user_id, status, plano, pago_ate)
 select u.id, 'ativa', null, null
 from auth.users u
 where lower(u.email) in (
-  'souza.dfabi@gmail.com'          -- <-- adicione aqui os emails da família
+            -- <-- adicione aqui os emails da família
 )
 on conflict (user_id) do update set status = 'ativa', pago_ate = null;
