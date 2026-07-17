@@ -259,6 +259,14 @@ revoke all on public.assinaturas from anon, authenticated;
 grant select on public.assinaturas to authenticated;
 
 -- Está valendo? (usada na trava de criar produto)
+-- Duas formas de estar valendo:
+--   1) ATIVA: assinatura em dia. A tolerância de 3 dias no `pago_ate` é de
+--      propósito — o aviso de renovação do Mercado Pago pode atrasar, e sem
+--      essa folga a conta de quem PAGOU seria barrada no minuto seguinte ao
+--      vencimento por causa de um webhook lento. (pago_ate null = cortesia.)
+--   2) CANCELADA mas ainda no período já pago: quem cancela para as cobranças
+--      futuras, mas continua usando até acabar o mês/ano que já pagou. Aqui o
+--      corte é limpo (sem folga): no dia do vencimento, acaba.
 create or replace function public.assinatura_ativa()
 returns boolean
 language sql
@@ -268,8 +276,12 @@ as $$
   select exists (
     select 1 from public.assinaturas
     where user_id = auth.uid()
-      and status = 'ativa'
-      and (pago_ate is null or pago_ate > now())
+      and (
+        (status = 'ativa'
+          and (pago_ate is null or pago_ate > now() - interval '3 days'))
+        or
+        (status = 'cancelada' and pago_ate is not null and pago_ate > now())
+      )
   );
 $$;
 

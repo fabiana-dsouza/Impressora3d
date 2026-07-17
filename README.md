@@ -46,12 +46,16 @@ O app exige login e guarda tudo na nuvem. Configuração (uma vez só):
 
 4. Reinicie o `npm run dev` e crie a primeira conta na tela de login. 🎉
 
-**Dica pra facilitar com criança:** no Supabase, em
-**Authentication → Providers → Email**, desligue *"Confirm email"* — assim a
-conta entra na hora, sem precisar clicar em link de confirmação.
+**Importante — deixe o cadastro ABERTO:** no Supabase, em
+**Authentication → Settings**, o *"Allow new users to sign up"* precisa ficar
+**ligado**. Aqui "criar conta" e "assinar" são o mesmo gesto: a catraca do app
+é o **pagamento** (sem assinatura ativa, o banco recusa criar produto), não o
+cadastro. Se você desligar os cadastros, ninguém novo consegue mais assinar.
 
-**Pra fechar os cadastros** (depois de criar as contas da família): em
-**Authentication → Settings**, desative *"Allow new users to sign up"*.
+**Ligue a conta na hora (recomendado):** em **Authentication → Providers →
+Email**, desligue *"Confirm email"*. Assim a conta nova já entra logada e o
+pagamento abre sozinho — que é o fluxo pensado pra criança. Se deixar ligado,
+a pessoa precisa clicar no link do email antes de o pagamento abrir.
 
 ### Por que é seguro
 
@@ -66,10 +70,27 @@ conta entra na hora, sem precisar clicar em link de confirmação.
 
 ## 💳 Assinaturas (Mercado Pago)
 
-O app é pago: criar conta é grátis, mas a fábrica só abre com assinatura
-ativa (R$ 120/mês ou R$ 1.200/ano — valores em [lib/planos.ts](lib/planos.ts)).
-A trava é aplicada **no banco** (sem assinatura, o Postgres recusa criar
-produto) e na interface (a home manda pra `/planos`).
+O app é pago (R$ 120/mês ou R$ 1.200/ano — valores em
+[lib/planos.ts](lib/planos.ts)). Na vitrine, **criar conta e assinar são o
+mesmo gesto**: escolher um pacote leva ao cadastro e, logo depois, ao Mercado
+Pago. A trava é aplicada **no banco** (sem assinatura ativa, o Postgres recusa
+criar produto) e na interface (a fábrica manda pra `/planos`).
+
+Detalhes do ciclo de vida da assinatura:
+
+- **Renovação:** o webhook trata tanto o aviso de assinatura
+  (`subscription_preapproval`) quanto o de cada cobrança mensal
+  (`subscription_authorized_payment`), e a data de validade (`pago_ate`)
+  avança a cada pagamento. Há **3 dias de tolerância** pra um webhook atrasado
+  não barrar quem pagou.
+- **Rede de segurança:** ao voltar do pagamento, o app **pergunta direto pra
+  API do MP** se já pagou (`/api/assinar/conferir`), então a conta libera mesmo
+  se o webhook demorar ou ainda não estiver cadastrado.
+- **Cancelamento** (em Configurações → Minha conta): para as cobranças
+  futuras no Mercado Pago, mas o acesso **continua até o fim do período já
+  pago**. Depois é só assinar de novo.
+- **Esqueci a senha:** link na tela de entrar → email do Supabase →
+  `/nova-senha`.
 
 **Como o dinheiro chega até você:** o cliente digita o cartão na página do
 Mercado Pago (nunca no app), o MP cobra todo mês sozinho e deposita na sua
@@ -126,9 +147,28 @@ MEI (gratuito, online) quando as vendas começarem.
    `.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
    `SUPABASE_SERVICE_ROLE_KEY`, `MP_ACCESS_TOKEN` e `NEXT_PUBLIC_SITE_URL`
    (com a URL final do site).
-4. No Supabase, em **Authentication → URL Configuration**, coloque a URL do
-   site (ex: `https://seu-app.vercel.app`) como *Site URL*.
+4. No Supabase, em **Authentication → URL Configuration**:
+   - *Site URL*: a URL do site (ex: `https://seu-app.vercel.app`);
+   - *Redirect URLs*: adicione `https://seu-app.vercel.app/**` (ou pelo menos
+     `.../auth/callback`). É por aqui que passam a confirmação de email e o
+     link de **esqueci minha senha** — sem essa liberação, o Supabase recusa
+     o redirecionamento e o link "não faz nada".
 5. Clique em **Deploy**.
+
+### Checklist rápido pra ir ao ar
+
+- [ ] Branch no GitHub e importada na Vercel.
+- [ ] Variáveis na Vercel: `NEXT_PUBLIC_SUPABASE_URL`,
+      `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+      `MP_ACCESS_TOKEN`. `NEXT_PUBLIC_SITE_URL` = a URL real (ou **em branco**;
+      **nunca** `localhost`).
+- [ ] `supabase/schema.sql` rodado no projeto (cria `assinaturas` e a trava).
+- [ ] Emails da **cortesia** da família preenchidos no fim do schema.
+- [ ] Webhook cadastrado no painel do MP (`.../api/mercadopago`) com os **dois**
+      eventos.
+- [ ] Supabase: *Site URL* e *Redirect URLs* preenchidos; cadastro **ligado**;
+      *Confirm email* desligado (recomendado).
+- [ ] Testar: criar conta → pagar → cair na fábrica → cancelar em Configurações.
 
 ## Novidades
 
@@ -169,11 +209,15 @@ lucro         = precoVenda − custoTotal − (precoVenda × taxaMarketplace)
 
 | Tela | Rota | O que faz |
 |------|------|-----------|
-| 🏠 Home | `/` | Cards dos produtos + "Se vender tudo, você ganha R$ X!" |
+| 🛍️ Vitrine | `/` | Landing pública: mostra o produto e os pacotes (entrada de quem ainda não tem conta) |
+| 🔑 Entrar / Criar | `/login` | Login por email ou nome da empresa; criar conta = assinar; "esqueci minha senha" |
+| 🔒 Senha nova | `/nova-senha` | Onde o link de recuperação de senha cai |
+| 💳 Planos | `/planos` | Assinar (abre o Mercado Pago) e confirmação pós-pagamento |
+| 🏠 Fábrica (home) | `/fabrica` | Cards dos produtos + "Se vender tudo, você ganha R$ X!" (só com assinatura ativa) |
 | ➕ Novo Produto | `/novo` | Wizard de 4 passos: nome → cores+peso → tempo → resultado |
 | 🧮 Resultado | `/resultado` | Custo/Venda grandes, barra 🚦, testador de preço + confete |
 | 🎨 Minhas Cores | `/cores` | Cadastro de filamentos com bolinha de cor |
-| ⚙️ Configurações | `/config` | Ajustes em linguagem simples |
+| ⚙️ Configurações | `/config` | Ajustes em linguagem simples + status e cancelamento da assinatura |
 
 ## Valores padrão (editáveis nas Configurações)
 

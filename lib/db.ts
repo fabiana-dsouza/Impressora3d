@@ -398,12 +398,35 @@ export async function lerAssinatura(): Promise<Assinatura> {
 
   const status = (data?.status ?? "nenhuma") as Assinatura["status"];
   const pagoAte = data?.pago_ate ? Date.parse(data.pago_ate) : null;
+  // Espelha a função assinatura_ativa() do banco (as duas TÊM que concordar,
+  // senão a tela manda pra /planos quem o Postgres ainda deixaria fabricar):
+  //   - ativa: folga de 3 dias pro webhook de renovação atrasado;
+  //   - cancelada: vale até o fim do período pago, corte limpo no vencimento.
+  const FOLGA_MS = 3 * 24 * 60 * 60 * 1000;
+  const agora = Date.now();
+  const ativa =
+    (status === "ativa" &&
+      (pagoAte === null || pagoAte > agora - FOLGA_MS)) ||
+    (status === "cancelada" && pagoAte !== null && pagoAte > agora);
   return {
     status,
     plano: data?.plano === "anual" || data?.plano === "mensal" ? data.plano : null,
     pagoAte,
-    ativa: status === "ativa" && (pagoAte === null || pagoAte > Date.now()),
+    ativa,
   };
+}
+
+/**
+ * Cancela a assinatura no Mercado Pago (para as cobranças futuras). O acesso
+ * continua até o fim do período já pago. Quem faz o trabalho é o servidor, que
+ * tem o token do MP e a chave secreta do banco.
+ */
+export async function cancelarAssinatura(): Promise<void> {
+  const resposta = await fetch("/api/assinar/cancelar", { method: "POST" });
+  if (!resposta.ok) {
+    const dados = await resposta.json().catch(() => null);
+    throw new Error(String(dados?.erro ?? "falhou"));
+  }
 }
 
 /* ----------------------------- Conta ----------------------------- */

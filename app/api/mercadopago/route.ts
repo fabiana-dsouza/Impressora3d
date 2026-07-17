@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { resolverPreapproval, gravarAssinatura } from "@/lib/mercadopago";
 
 /**
  * Webhook do Mercado Pago: ele avisa aqui quando uma assinatura muda
@@ -24,50 +24,26 @@ export async function POST(request: Request) {
     corpo?.data?.id ??
     searchParams.get("data.id") ??
     searchParams.get("id");
-  const tipo = String(corpo?.type ?? searchParams.get("type") ?? searchParams.get("topic") ?? "");
+  const tipo = String(
+    corpo?.type ?? searchParams.get("type") ?? searchParams.get("topic") ?? ""
+  );
 
-  // Só nos interessam avisos de assinatura.
-  if (!id || (tipo && !tipo.includes("preapproval") && !tipo.includes("subscription"))) {
+  // Só nos interessam avisos de assinatura (a criação/pausa/cancelamento) e de
+  // cobrança da assinatura (a renovação de cada mês).
+  const ehAssinatura =
+    tipo.includes("preapproval") ||
+    tipo.includes("subscription") ||
+    tipo.includes("authorized_payment");
+  if (!id || (tipo && !ehAssinatura)) {
     return NextResponse.json({ ok: true });
   }
 
   // Fonte da verdade: a própria API do Mercado Pago.
-  const resposta = await fetch(
-    `https://api.mercadopago.com/preapproval/${id}`,
-    { headers: { Authorization: `Bearer ${mpToken}` } }
-  );
-  if (!resposta.ok) return NextResponse.json({ ok: true });
-  const ass = await resposta.json();
+  const preapproval = await resolverPreapproval(mpToken, String(id), tipo);
+  if (!preapproval) return NextResponse.json({ ok: true });
 
-  // external_reference = "<user_id>|<plano>" (definido na hora de assinar)
-  const [userId, plano] = String(ass?.external_reference ?? "").split("|");
-  if (!userId || userId.length < 30) return NextResponse.json({ ok: true });
-
-  const mapa: Record<string, string> = {
-    authorized: "ativa",
-    paused: "atrasada",
-    cancelled: "cancelada",
-    pending: "pendente",
-  };
-  const status = mapa[String(ass?.status)] ?? "pendente";
-
-  const admin = createClient(supaUrl, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { error } = await admin.from("assinaturas").upsert(
-    {
-      user_id: userId,
-      status,
-      plano: plano === "anual" ? "anual" : "mensal",
-      provedor: "mercadopago",
-      provedor_id: String(ass?.id ?? id),
-      pago_ate: ass?.next_payment_date ?? null,
-      atualizado_em: new Date().toISOString(),
-    },
-    { onConflict: "user_id" }
-  );
-  if (error) {
-    console.error("Webhook: falhou ao gravar assinatura", error);
+  const resultado = await gravarAssinatura(supaUrl, serviceKey, preapproval);
+  if ("erro" in resultado && resultado.erro === "banco") {
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 

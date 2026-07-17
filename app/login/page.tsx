@@ -16,7 +16,7 @@ import {
   nomeEmpresaValido,
 } from "@/lib/email";
 
-type Modo = "entrar" | "criar";
+type Modo = "entrar" | "criar" | "recuperar";
 
 /** Traduz os erros do Supabase pra linguagem de criança. */
 function erroAmigavel(msg: string): string {
@@ -110,6 +110,37 @@ function Login() {
     setModo(m);
     setErro("");
     setAviso("");
+  }
+
+  /**
+   * Manda pro email um link pra criar uma senha nova. O link cai em
+   * /auth/callback, que loga e joga a pessoa na tela de senha nova.
+   *
+   * A resposta é sempre a mesma ("se a conta existir, mandei"): dizer se o
+   * email tem ou não tem conta entregaria quem é cadastrado.
+   */
+  async function recuperar() {
+    setErro("");
+    setAviso("");
+    if (!emailGmailValido(email)) {
+      setErro("Escreve seu email @gmail.com pra eu mandar o link.");
+      return;
+    }
+    setCarregando(true);
+    try {
+      const { error } = await supabase().auth.resetPasswordForEmail(
+        normalizarGmail(email),
+        { redirectTo: `${window.location.origin}/auth/callback?next=/nova-senha` }
+      );
+      if (error) throw error;
+      setAviso(
+        "Pronto! Se essa conta existir, mandei um link pra criar uma senha nova. Olha seu email 📬"
+      );
+    } catch (e: any) {
+      setErro(erroAmigavel(String(e?.message ?? e)));
+    } finally {
+      setCarregando(false);
+    }
   }
 
   async function entrar() {
@@ -223,27 +254,49 @@ function Login() {
       </div>
 
       <div className="card">
-        {/* Abas entrar / criar conta */}
-        <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-borda bg-painel2 p-1">
-          <button
-            onClick={() => trocarModo("entrar")}
-            className={`rounded-xl py-3 font-extrabold transition-colors ${
-              modo === "entrar" ? "bg-neon text-fundo" : "text-mute"
-            }`}
-          >
-            Entrar
-          </button>
-          <button
-            onClick={() => trocarModo("criar")}
-            className={`rounded-xl py-3 font-extrabold transition-colors ${
-              modo === "criar" ? "bg-neon text-fundo" : "text-mute"
-            }`}
-          >
-            Criar conta
-          </button>
-        </div>
+        {/* Abas entrar / criar conta (somem na tela de senha nova) */}
+        {modo !== "recuperar" && (
+          <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-borda bg-painel2 p-1">
+            <button
+              onClick={() => trocarModo("entrar")}
+              className={`rounded-xl py-3 font-extrabold transition-colors ${
+                modo === "entrar" ? "bg-neon text-fundo" : "text-mute"
+              }`}
+            >
+              Entrar
+            </button>
+            <button
+              onClick={() => trocarModo("criar")}
+              className={`rounded-xl py-3 font-extrabold transition-colors ${
+                modo === "criar" ? "bg-neon text-fundo" : "text-mute"
+              }`}
+            >
+              Criar conta
+            </button>
+          </div>
+        )}
 
-        {modo === "criar" ? (
+        {modo === "recuperar" ? (
+          <>
+            <div className="mb-4 text-center">
+              <p className="display text-lg font-bold text-tinta">
+                Esqueceu a senha?
+              </p>
+              <p className="mt-1 font-bold text-mute">
+                Escreve seu email que eu mando um link pra criar uma nova.
+              </p>
+            </div>
+            <Campo
+              rotulo="Seu email (@gmail.com)"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={setEmail}
+              placeholder="voce@gmail.com"
+              onEnter={recuperar}
+            />
+          </>
+        ) : modo === "criar" ? (
           <>
             {/* O que ela está prestes a assinar. Sem isto, o botão "criar
                 minha conta" abriria uma cobrança de surpresa. */}
@@ -322,7 +375,13 @@ function Login() {
         )}
 
         <button
-          onClick={modo === "entrar" ? entrar : criar}
+          onClick={
+            modo === "entrar"
+              ? entrar
+              : modo === "recuperar"
+              ? recuperar
+              : criar
+          }
           disabled={carregando}
           className="btn-grande btn-neon w-full text-xl disabled:opacity-60"
         >
@@ -330,6 +389,8 @@ function Login() {
             ? "Um segundinho..."
             : modo === "entrar"
             ? "Entrar"
+            : modo === "recuperar"
+            ? "Me manda o link"
             : plano
             ? "Criar conta e assinar"
             : "Criar minha conta"}
@@ -339,6 +400,26 @@ function Login() {
           <p className="mt-3 text-center text-sm font-bold text-mute">
             No próximo passo você paga na página do Mercado Pago.
           </p>
+        )}
+
+        {/* Esqueci a senha: só faz sentido pra quem já tem conta e está tentando
+            entrar. */}
+        {modo === "entrar" && (
+          <button
+            onClick={() => trocarModo("recuperar")}
+            className="mt-4 block w-full text-center text-sm font-bold text-mute underline"
+          >
+            Esqueci minha senha
+          </button>
+        )}
+
+        {modo === "recuperar" && (
+          <button
+            onClick={() => trocarModo("entrar")}
+            className="mt-4 block w-full text-center text-sm font-bold text-mute underline"
+          >
+            Voltar pra entrar
+          </button>
         )}
 
         {/* A saída pra quem não tem conta. Sem isto, quem chega aqui achando

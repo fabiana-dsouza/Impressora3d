@@ -45,6 +45,13 @@ describe("login", () => {
     expect(destinoDaRota("/auth/callback", false)).toBe(SEGUE);
     expect(destinoDaRota("/api/mercadopago", false)).toBe(SEGUE);
   });
+
+  it("a tela de senha nova fica aberta (link de recuperação)", () => {
+    // Aberta pros dois: deslogado vê o "link expirou"; logado (sessão de
+    // recuperação) troca a senha sem ser chutado pra fábrica.
+    expect(destinoDaRota("/nova-senha", false)).toBe(SEGUE);
+    expect(destinoDaRota("/nova-senha", true)).toBe(SEGUE);
+  });
 });
 
 describe("rotaPublica: a '/' não pode virar prefixo de tudo", () => {

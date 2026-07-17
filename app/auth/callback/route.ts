@@ -29,7 +29,15 @@ export async function GET(request: Request) {
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  // A fábrica devolve pro /planos quem ainda não pagou, então este é o
+  // Destino opcional (usado pelo link de "esqueci a senha", que precisa cair na
+  // tela de senha nova em vez da fábrica). Só aceitamos um caminho INTERNO —
+  // "/algo", nunca "//site.com" — pra ninguém transformar o link de email num
+  // redirecionador pra fora.
+  const next = searchParams.get("next");
+  const destino =
+    next && next.startsWith("/") && !next.startsWith("//") ? next : "/fabrica";
+
+  // A fábrica devolve pro /planos quem ainda não pagou, então /fabrica é o
   // destino certo tanto pra conta nova quanto pra quem já assina.
-  return NextResponse.redirect(`${origin}/fabrica`);
+  return NextResponse.redirect(`${origin}${destino}`);
 }

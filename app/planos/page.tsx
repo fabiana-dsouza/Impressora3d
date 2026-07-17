@@ -57,6 +57,13 @@ function Planos() {
 
     async function conferir() {
       try {
+        // Não espera só o webhook: pergunta pro MP na hora se já pagou. A rota
+        // grava o resultado, então o lerAssinatura logo abaixo já enxerga.
+        if (voltouDoPagamento) {
+          await fetch("/api/assinar/conferir", { method: "POST" }).catch(
+            () => {}
+          );
+        }
         const a = await db.lerAssinatura();
         if (!vivo) return;
         setAssinatura(a);

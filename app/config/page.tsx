@@ -20,6 +20,7 @@ import {
   emailUsuario,
   sair,
   lerAssinatura,
+  cancelarAssinatura,
   type Assinatura,
 } from "@/lib/db";
 import { CONFIG_PADRAO, MARGEM_MINIMA } from "@/lib/defaults";
@@ -35,6 +36,8 @@ export default function Configuracoes() {
   const [aviso, setAviso] = useState("");
   const [perguntandoRestaurar, setPerguntandoRestaurar] = useState(false);
   const [assinatura, setAssinatura] = useState<Assinatura | null>(null);
+  const [perguntandoCancelar, setPerguntandoCancelar] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -98,6 +101,33 @@ export default function Configuracoes() {
       setSaindo(false);
     }
   }
+
+  async function cancelarAgora() {
+    setPerguntandoCancelar(false);
+    setCancelando(true);
+    try {
+      await cancelarAssinatura();
+      const a = await lerAssinatura();
+      setAssinatura(a);
+    } catch (e) {
+      console.error(e);
+      setAviso(
+        "Não consegui cancelar agora. Tenta de novo daqui a pouco ou fala com um adulto."
+      );
+    } finally {
+      setCancelando(false);
+    }
+  }
+
+  // Só faz sentido cancelar uma assinatura paga que ainda está valendo (a
+  // cortesia da família não tem plano; a já cancelada não tem o que cancelar).
+  const podeCancelar =
+    !!assinatura?.plano &&
+    (assinatura.status === "ativa" || assinatura.status === "atrasada");
+  const valeAte =
+    assinatura?.pagoAte != null
+      ? new Date(assinatura.pagoAte).toLocaleDateString("pt-BR")
+      : null;
 
   const energiaHora = custoEnergiaPorHora(cfg.potenciaWatts, cfg.tarifaKwh);
   const desgasteHora = desgastePorHora(cfg.precoImpressora, cfg.vidaUtilHoras);
@@ -237,27 +267,48 @@ export default function Configuracoes() {
           Você entrou como{" "}
           <span className="text-tinta">{email || "..."}</span>
         </p>
-        <div className="mb-4 flex items-center justify-between rounded-xl border border-borda bg-painel2 p-3">
-          <span className="font-bold text-mute">
-            Assinatura:{" "}
-            <span
-              className={
-                assinatura?.ativa ? "text-neon" : "text-perigo"
-              }
-            >
-              {assinatura === null
-                ? "..."
-                : assinatura.ativa
-                ? `ativa${assinatura.plano ? ` (${assinatura.plano})` : ""}`
-                : assinatura.status}
+        <div className="mb-4 rounded-xl border border-borda bg-painel2 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-bold text-mute">
+              Assinatura:{" "}
+              <span className={assinatura?.ativa ? "text-neon" : "text-perigo"}>
+                {assinatura === null
+                  ? "..."
+                  : assinatura.status === "cancelada" && assinatura.ativa
+                  ? "cancelada"
+                  : assinatura.ativa
+                  ? `ativa${assinatura.plano ? ` (${assinatura.plano})` : ""}`
+                  : assinatura.status}
+              </span>
             </span>
-          </span>
-          <a
-            href="/planos"
-            className="shrink-0 text-sm font-bold text-ciano underline"
-          >
-            ver planos
-          </a>
+            {!assinatura?.ativa && (
+              <a
+                href="/planos"
+                className="shrink-0 text-sm font-bold text-ciano underline"
+              >
+                ver planos
+              </a>
+            )}
+          </div>
+
+          {/* Data: "renova em" pra assinatura viva, "vale até" pra cancelada */}
+          {valeAte && assinatura?.ativa && (
+            <p className="mt-1 text-sm font-bold text-mute">
+              {assinatura.status === "cancelada"
+                ? `Cobranças paradas. Você usa até ${valeAte}.`
+                : `Próxima cobrança em ${valeAte}.`}
+            </p>
+          )}
+
+          {podeCancelar && (
+            <button
+              onClick={() => setPerguntandoCancelar(true)}
+              disabled={cancelando}
+              className="mt-3 text-sm font-bold text-perigo underline disabled:opacity-60"
+            >
+              {cancelando ? "Cancelando..." : "Cancelar assinatura"}
+            </button>
+          )}
         </div>
         <button
           onClick={sairDaConta}
@@ -283,6 +334,22 @@ export default function Configuracoes() {
           cancelar="Deixa como está"
           onConfirmar={restaurar}
           onFechar={() => setPerguntandoRestaurar(false)}
+        />
+      )}
+
+      {perguntandoCancelar && (
+        <Dialogo
+          tom="perigo"
+          titulo="Cancelar a assinatura?"
+          texto={
+            valeAte
+              ? `As cobranças param. Você continua usando a fábrica até ${valeAte}, e seus produtos e cores ficam guardados. Depois, é só assinar de novo pra voltar.`
+              : "As cobranças param e você para de usar a fábrica. Seus produtos e cores ficam guardados pra quando você voltar."
+          }
+          confirmar="Sim, cancelar"
+          cancelar="Deixa como está"
+          onConfirmar={cancelarAgora}
+          onFechar={() => setPerguntandoCancelar(false)}
         />
       )}
 
