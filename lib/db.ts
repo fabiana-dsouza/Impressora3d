@@ -377,6 +377,24 @@ export async function empresaExiste(nome: string): Promise<boolean> {
   return Boolean(data);
 }
 
+/**
+ * Diz se esse Gmail já tem conta (comparado na forma canônica — sem pontos nem
+ * +apelido, igual o banco faz). O cadastro usa isto pra avisar "esse Gmail já
+ * tem conta" ANTES de tentar criar, em vez de deixar a colisão virar o erro cru
+ * "Database error saving new user".
+ *
+ * Falha PRA FORA (devolve false) se a função ainda não existir no banco: assim
+ * um cadastro legítimo nunca fica travado por causa disso — a trava de verdade
+ * continua sendo o índice único do banco.
+ */
+export async function emailExiste(email: string): Promise<boolean> {
+  const { data, error } = await supabase().rpc("email_existe", {
+    p_email: email,
+  });
+  if (error) return false;
+  return Boolean(data);
+}
+
 /* --------------------------- Assinatura --------------------------- */
 
 export interface Assinatura {

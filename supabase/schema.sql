@@ -226,8 +226,34 @@ as $$
   );
 $$;
 
+-- Diz se esse Gmail já tem conta, comparando na forma CANÔNICA — sem pontos e
+-- sem +apelido, exatamente como o índice perfis_email_unico compara. Serve pro
+-- cadastro avisar "esse Gmail já tem conta" ANTES de tentar criar. Sem isto, o
+-- Gmail "souza.dfabi" (salvo com ponto) e o "souzadfabi" passam batido pelo
+-- auth (que compara texto exato), mas colidem aqui na hora de gravar o perfil —
+-- e a pessoa só via o erro cru "Database error saving new user".
+-- Só revela "esse email está em uso", nunca dados de ninguém.
+create or replace function public.email_existe(p_email text)
+returns boolean
+language sql
+security definer set search_path = public
+as $$
+  select exists (
+    select 1 from public.perfis
+    where lower(
+            replace(split_part(split_part(email, '@', 1), '+', 1), '.', '')
+            || '@' || split_part(email, '@', 2)
+          )
+        = lower(
+            replace(split_part(split_part(p_email, '@', 1), '+', 1), '.', '')
+            || '@' || split_part(p_email, '@', 2)
+          )
+  );
+$$;
+
 grant execute on function public.email_da_empresa(text, text) to anon, authenticated;
 grant execute on function public.empresa_existe(text)         to anon, authenticated;
+grant execute on function public.email_existe(text)           to anon, authenticated;
 
 -- =====================================================================
 -- ASSINATURAS: quem pagou pode usar a fábrica
@@ -310,6 +336,6 @@ insert into public.assinaturas (user_id, status, plano, pago_ate)
 select u.id, 'ativa', null, null
 from auth.users u
 where lower(u.email) in (
-  'souza.dfabi@gmail.com'          -- <-- adicione aqui os emails da família
+            -- <-- adicione aqui os emails da família
 )
 on conflict (user_id) do update set status = 'ativa', pago_ate = null;
