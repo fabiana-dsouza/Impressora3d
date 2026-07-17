@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { PLANOS, ehPlanoId } from "@/lib/planos";
 import { MARCA } from "@/lib/marca";
-import { ehLocal } from "@/lib/site";
+import { ehLocal, enderecoDoSite } from "@/lib/site";
 
 /**
  * Cria a assinatura recorrente no Mercado Pago e devolve o link de
@@ -50,8 +50,12 @@ export async function POST(request: Request) {
   }
   const p = PLANOS[plano];
 
-  const site =
-    process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
+  // Prefere NEXT_PUBLIC_SITE_URL, mas ignora um valor local (ex.: a variável
+  // ficou "localhost" na Vercel) e cai no endereço real da requisição.
+  const site = enderecoDoSite(
+    process.env.NEXT_PUBLIC_SITE_URL,
+    new URL(request.url).origin
+  );
 
   /*
    * O Mercado Pago precisa ALCANÇAR este site: a `back_url` é pra onde ele

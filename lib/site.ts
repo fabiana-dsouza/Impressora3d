@@ -6,6 +6,25 @@
  * `tsc` e só quebra no `next build`.
  */
 
+/**
+ * O endereço público que o Mercado Pago vai usar (back_url e para onde devolve
+ * a pessoa depois de pagar).
+ *
+ * Prefere o que está CONFIGURADO (`NEXT_PUBLIC_SITE_URL`) — mas só se for um
+ * endereço de verdade. Se a variável vier vazia OU apontando pra localhost (o
+ * clássico "copiei o .env.local pra Vercel sem trocar o valor"), a gente usa o
+ * endereço real por onde a requisição chegou. Assim um valor errado no painel
+ * NÃO derruba o pagamento em produção. Em dev os dois são locais, então o
+ * resultado continua local e a trava do `ehLocal` barra — que é o certo.
+ */
+export function enderecoDoSite(
+  configurado: string | undefined,
+  origemDaRequisicao: string
+): string {
+  if (configurado && !ehLocal(configurado)) return configurado;
+  return origemDaRequisicao;
+}
+
 /** Endereço que só existe na máquina de quem programa — o MP não alcança. */
 export function ehLocal(site: string): boolean {
   try {
