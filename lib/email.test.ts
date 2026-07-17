@@ -46,6 +46,22 @@ describe("normalizar gmail (evita conta duplicada)", () => {
       "fabi.souza@outlook.com"
     );
   });
+
+  // Regressão do "Database error saving new user": uma conta salva COM ponto
+  // (souza.dfabi) colidia com o cadastro do MESMO Gmail sem ponto (souzadfabi).
+  // A checagem de email antes do cadastro depende de as duas formas virarem o
+  // mesmo canônico — é o que o índice perfis_email_unico compara no banco.
+  it("souza.dfabi e souzadfabi são a MESMA caixa (bug do cadastro)", () => {
+    const canonico = "souzadfabi@gmail.com";
+    for (const variacao of [
+      "souzadfabi@gmail.com",
+      "souza.dfabi@gmail.com",
+      "souzadfabi+loja@gmail.com",
+      "SOUZA.DFABI@gmail.com",
+    ]) {
+      expect(normalizarGmail(variacao)).toBe(canonico);
+    }
+  });
 });
 
 describe("validar email @gmail.com", () => {

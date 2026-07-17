@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { supabase, supabaseConfigurado } from "@/lib/supabase/client";
-import { emailDaEmpresa, empresaExiste } from "@/lib/db";
+import { emailDaEmpresa, empresaExiste, emailExiste } from "@/lib/db";
 import { PLANOS, ehPlanoId, type PlanoId } from "@/lib/planos";
 import { brl } from "@/lib/format";
 import { MARCA, TAGLINE } from "@/lib/marca";
@@ -36,7 +36,7 @@ function erroAmigavel(msg: string): string {
     return "Precisa ser um email @gmail.com de verdade.";
   // Erro do gatilho: quase sempre nome de empresa ou email repetido.
   if (m.includes("database error saving new user"))
-    return "Esse nome de empresa ou esse Gmail já está em uso.";
+    return "Esse Gmail ou nome de empresa já tem conta. Se for sua, é só entrar!";
   if (m.includes("duplicate") || m.includes("unique"))
     return "Já existe uma empresa com esse nome! Escolhe outro.";
   if (m.includes("password should be at least"))
@@ -214,8 +214,17 @@ function Login() {
       }
       // Guarda o email na forma canônica: assim fabi.souza@ e fabisouza@
       // não viram duas contas diferentes.
+      const emailCanonico = normalizarGmail(email);
+      // Confere o Gmail ANTES de tentar criar. O Gmail ignora ponto e +apelido,
+      // então "souza.dfabi@" e "souzadfabi@" são a MESMA caixa: sem esta checa,
+      // a colisão só aparecia como o erro cru "Database error saving new user".
+      if (await emailExiste(emailCanonico)) {
+        setErro("Esse Gmail já tem uma conta! É só entrar.");
+        setCarregando(false);
+        return;
+      }
       const { data, error } = await supabase().auth.signUp({
-        email: normalizarGmail(email),
+        email: emailCanonico,
         password: senha,
         options: {
           data: { nome_empresa: empresa.trim() },
