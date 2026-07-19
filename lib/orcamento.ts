@@ -52,7 +52,7 @@ export function dataBR(d: Date): string {
 export function nomeDoArquivo(nomeProduto: string): string {
   const slug = nomeProduto
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // tira o acento, mantém a letra
+    .replace(/[\u0300-\u036f]/g, "") // tira o acento, mantém a letra
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
