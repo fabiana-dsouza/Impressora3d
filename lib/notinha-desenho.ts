@@ -81,7 +81,7 @@ function carimbo(ctx: CanvasRenderingContext2D, texto: string, cx: number, cy: n
 
   // Preço grande demais encolhe em vez de furar o papel.
   let tamanho = 24;
-  (ctx as any).letterSpacing = "0px";
+  ctx.letterSpacing = "0px";
   ctx.font = `700 ${tamanho}px ${F_MONO}`;
   while (ctx.measureText(texto).width + 34 > larguraMax && tamanho > 14) {
     tamanho -= 1;
@@ -97,17 +97,17 @@ function carimbo(ctx: CanvasRenderingContext2D, texto: string, cx: number, cy: n
   ctx.strokeStyle = VERDE;
   ctx.lineWidth = 3;
   ctx.beginPath();
-  (ctx as any).roundRect(-largura / 2, -altura / 2, largura, altura, 11);
+  ctx.roundRect(-largura / 2, -altura / 2, largura, altura, 12);
   ctx.stroke();
 
   ctx.fillStyle = VERDE;
   ctx.textAlign = "center";
   ctx.font = `800 9px ${F_CORPO}`;
-  (ctx as any).letterSpacing = "3px";
+  ctx.letterSpacing = "3px";
   ctx.fillText("PREÇO", 0, -altura / 2 + 18);
 
   ctx.font = `700 ${tamanho}px ${F_MONO}`;
-  (ctx as any).letterSpacing = "0px";
+  ctx.letterSpacing = "0px";
   ctx.fillText(texto, 0, altura / 2 - 13);
 
   ctx.restore();
@@ -133,7 +133,7 @@ function percorrer(
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = TINTA;
     ctx.font = `700 19px ${F_DISPLAY}`;
-    (ctx as any).letterSpacing = "2px";
+    ctx.letterSpacing = "2px";
     ctx.fillText(`★ ${dados.empresa.toUpperCase()} ★`, meio, y + 15);
   }
   y += 22;
@@ -141,7 +141,7 @@ function percorrer(
   if (pintar) {
     ctx.fillStyle = SUAVE;
     ctx.font = `700 10px ${F_CORPO}`;
-    (ctx as any).letterSpacing = "3px";
+    ctx.letterSpacing = "3px";
     ctx.fillText("ORÇAMENTO", meio, y + 10);
   }
   y += 18;
@@ -161,7 +161,7 @@ function percorrer(
   if (pintar) {
     ctx.fillStyle = TINTA;
     ctx.font = `800 17px ${F_CORPO}`;
-    (ctx as any).letterSpacing = "0px";
+    ctx.letterSpacing = "0px";
   }
   for (const linha of linhasNome) {
     if (pintar) ctx.fillText(linha, meio, y + 17);
@@ -172,6 +172,7 @@ function percorrer(
     if (pintar) {
       ctx.fillStyle = SUAVE;
       ctx.font = `600 13px ${F_CORPO}`;
+      ctx.letterSpacing = "0px";
       ctx.fillText(dados.cores, meio, y + 13);
     }
     y += 20;
@@ -184,9 +185,9 @@ function percorrer(
   if (pintar) {
     ctx.fillStyle = SUAVE;
     ctx.font = `600 11px ${F_CORPO}`;
-    (ctx as any).letterSpacing = "1px";
+    ctx.letterSpacing = "1px";
     ctx.fillText(`orçamento de ${dataBR(dados.data)}`, meio, y + 22);
-    (ctx as any).letterSpacing = "0px";
+    ctx.letterSpacing = "0px";
   }
   y += 30;
 
@@ -199,7 +200,7 @@ function papel(ctx: CanvasRenderingContext2D, altura: number) {
 
   ctx.fillStyle = PAPEL;
   ctx.beginPath();
-  (ctx as any).roundRect(0, 0, LARGURA, corpo, [CANTO, CANTO, 0, 0]);
+  ctx.roundRect(0, 0, LARGURA, corpo, [CANTO, CANTO, 0, 0]);
   ctx.fill();
 
   // Dentes de largura exata pra não sobrar meio dente na borda direita.
@@ -222,7 +223,7 @@ export function desenharOrcamento(
   if (!ctx) return;
 
   // Medir com a fonte e o espaçamento certos, senão a quebra de linha erra.
-  (ctx as any).letterSpacing = "0px";
+  ctx.letterSpacing = "0px";
   ctx.font = `800 17px ${F_CORPO}`;
   const linhasNome = quebrarEmLinhas(
     dados.produto.toUpperCase(),
