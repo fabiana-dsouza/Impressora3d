@@ -25,7 +25,8 @@ function baixar(blob: Blob, nomeArquivo: string) {
   link.href = url;
   link.download = nomeArquivo;
   link.click();
-  URL.revokeObjectURL(url);
+  // Adiar a revogação para o Safari não abortar o download enquanto começa de forma assíncrona
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export async function compartilharImagem(
