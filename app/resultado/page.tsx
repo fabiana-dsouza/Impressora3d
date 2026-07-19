@@ -11,6 +11,8 @@ import Confete from "@/components/Confete";
 import { Logo } from "@/components/Marca";
 import { IconeAlerta, IconeCasa } from "@/components/Icones";
 import NotinhaInterna from "@/components/NotinhaInterna";
+import NotinhaCliente from "@/components/NotinhaCliente";
+import { montarOrcamento } from "@/lib/orcamento";
 
 export default function ResultadoPage() {
   return (
@@ -82,6 +84,14 @@ function Resultado() {
     return calcularProduto(produto, config, cores);
   }, [produto, config, cores]);
 
+  // Memoizado porque NotinhaCliente redesenha o canvas toda vez que `dados`
+  // muda de identidade — sem isto, um objeto novo a cada render viraria um
+  // loop de repintura.
+  const dadosOrcamento = useMemo(() => {
+    if (!produto || !resultado) return null;
+    return montarOrcamento(produto, resultado, cores, empresa, new Date());
+  }, [produto, resultado, cores, empresa]);
+
   if (!id || (carregou && produto === null)) {
     return (
       <main className="mx-auto flex max-w-xl flex-col items-center pt-20 text-center">
@@ -104,10 +114,9 @@ function Resultado() {
   if (!resultado || !produto || !config) return <Carregando />;
 
   return (
-    <main className="mx-auto w-full max-w-md">
+    <main className="mx-auto w-full max-w-md lg:max-w-4xl">
       <Confete ativo={confete} />
 
-      {/* só o botão de voltar — a página é a notinha */}
       <div className="mb-4">
         <Link
           href="/fabrica"
@@ -118,14 +127,29 @@ function Resultado() {
         </Link>
       </div>
 
-      {/* ---------- A NOTINHA ---------- */}
-      <NotinhaInterna
-        produto={produto}
-        config={config}
-        cores={cores}
-        resultado={resultado}
-        empresa={empresa}
-      />
+      {/* As duas notinhas se parecem de longe, e mandar a errada pro cliente
+          seria o pior erro possível — por isso cada uma tem nome em cima. */}
+      <div className="grid gap-12 lg:grid-cols-2 lg:items-start lg:gap-8">
+        <section>
+          <p className="mb-3 text-center text-base font-extrabold uppercase tracking-wide text-mute">
+            só sua
+          </p>
+          <NotinhaInterna
+            produto={produto}
+            config={config}
+            cores={cores}
+            resultado={resultado}
+            empresa={empresa}
+          />
+        </section>
+
+        <section>
+          <p className="mb-3 text-center text-base font-extrabold uppercase tracking-wide text-mute">
+            pro cliente
+          </p>
+          {dadosOrcamento && <NotinhaCliente dados={dadosOrcamento} />}
+        </section>
+      </div>
     </main>
   );
 }
