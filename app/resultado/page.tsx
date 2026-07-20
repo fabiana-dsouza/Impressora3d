@@ -114,10 +114,12 @@ function Resultado() {
   if (!resultado || !produto || !config) return <Carregando />;
 
   return (
-    // max-w-3xl (768px) menos o gap-8 (32px) sobra 368px por coluna — bem
-    // perto dos 360px naturais da notinha em canvas, então as duas notinhas
-    // ficam do mesmo tamanho em vez de uma esticar mais que a outra.
-    <main className="mx-auto w-full max-w-md lg:max-w-3xl">
+    // max-w-4xl deixa 432px por coluna. Já tentei apertar pra 3xl (368px) pra
+    // casar com os 360px naturais da notinha em canvas, mas a notinha interna
+    // tem fonte fixa de 16px e começou a quebrar linha ("...· 40 / G"). Quem
+    // cede é o canvas, que se centraliza nos seus 360 — texto quebrado é pior
+    // que 72px de folga.
+    <main className="mx-auto w-full max-w-md lg:max-w-4xl">
       <Confete ativo={confete} />
 
       <div className="mb-4">
