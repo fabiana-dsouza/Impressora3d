@@ -63,7 +63,7 @@ export default function NotinhaCliente({ dados }: { dados: DadosOrcamento }) {
         ref={canvasRef}
         role="img"
         aria-label={textoDaNotinha(dados)}
-        className="block w-full"
+        className="recibo-canvas"
       />
 
       <button

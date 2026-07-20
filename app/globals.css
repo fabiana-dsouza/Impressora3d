@@ -12,6 +12,12 @@
   --papel: #fffdf6;
   --papel-tinta: #40372a;
   --papel-suave: #9c9078;
+  /* --fundo e --neon existem aqui pra notinha desenhada no canvas conseguir
+     ler as mesmas cores da notinha em HTML, em vez de guardar cópia própria. */
+  --fundo: #f7f7f7;
+  --neon: #0f9d6e;
+  /* a sombra da notinha, compartilhada entre a versão HTML e a versão canvas */
+  --sombra-recibo: 0 22px 48px -22px rgba(8, 48, 76, 0.5);
   /* o arco-íris de filamento — o acento iridescente do portrait relido */
   --arco: linear-gradient(
     90deg,
@@ -267,7 +273,7 @@ body {
   color: var(--papel-tinta);
   border-radius: 14px 14px 0 0;
   position: relative;
-  box-shadow: 0 22px 48px -22px rgba(8, 48, 76, 0.5);
+  box-shadow: var(--sombra-recibo);
 }
 .recibo::after {
   content: "";
@@ -283,6 +289,17 @@ body {
   background-position: 0 0;
   background-repeat: repeat-x;
 }
+/* A notinha do cliente é um canvas, então o papel é desenhado por dentro.
+   Só a sombra vem de fora — e vem da MESMA variável do .recibo, pra as
+   duas notinhas nunca flutuarem de jeitos diferentes. */
+.recibo-canvas {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  margin-inline: auto;
+  box-shadow: var(--sombra-recibo);
+}
+
 .linha-recibo {
   display: flex;
   align-items: baseline;

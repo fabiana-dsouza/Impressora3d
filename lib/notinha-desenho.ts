@@ -22,12 +22,39 @@ const DENTE = 8;
 const CARIMBO_ALTURA = 64;
 const CANTO = 14;
 
-const PAPEL = "#fffdf6";
-const TINTA = "#40372a";
-const SUAVE = "#9c9078";
-const VERDE = "#0f9d6e";
-const FUNDO = "#f7f7f7";
 const TRACEJADO = "rgba(64, 55, 42, 0.28)";
+
+/** As cores da notinha, lidas do CSS pra baterem com a versão em HTML. */
+type Paleta = {
+  papel: string;
+  tinta: string;
+  suave: string;
+  verde: string;
+  fundo: string;
+};
+
+/**
+ * Lê a cor do CSS pra notinha desenhada e a notinha de HTML nunca
+ * discordarem. O valor de reserva é o mesmo do globals.css, pro desenho
+ * não sumir se a variável faltar.
+ */
+function corDoCss(nome: string, reserva: string): string {
+  if (typeof document === "undefined") return reserva;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(nome);
+  return v.trim() || reserva;
+}
+
+/** Monta a paleta uma vez por desenho — nunca no topo do módulo (o Vitest
+ * roda este arquivo em ambiente node, sem `document`). */
+function lerPaleta(): Paleta {
+  return {
+    papel: corDoCss("--papel", "#fffdf6"),
+    tinta: corDoCss("--papel-tinta", "#40372a"),
+    suave: corDoCss("--papel-suave", "#9c9078"),
+    verde: corDoCss("--neon", "#0f9d6e"),
+    fundo: corDoCss("--fundo", "#f7f7f7"),
+  };
+}
 
 const F_DISPLAY = '"Fredoka", "Rubik", system-ui, sans-serif';
 const F_CORPO = '"Rubik", ui-sans-serif, system-ui, sans-serif';
@@ -72,7 +99,13 @@ export function quebrarEmLinhas(
 }
 
 /** O carimbo verde com o preço — o irmão do carimbo do lucro da notinha interna. */
-function carimbo(ctx: CanvasRenderingContext2D, texto: string, cx: number, cy: number) {
+function carimbo(
+  ctx: CanvasRenderingContext2D,
+  paleta: Paleta,
+  texto: string,
+  cx: number,
+  cy: number
+) {
   const larguraMax = LARGURA - MARGEM * 2 - 12;
 
   ctx.save();
@@ -94,13 +127,13 @@ function carimbo(ctx: CanvasRenderingContext2D, texto: string, cx: number, cy: n
   );
   const altura = 54;
 
-  ctx.strokeStyle = VERDE;
+  ctx.strokeStyle = paleta.verde;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.roundRect(-largura / 2, -altura / 2, largura, altura, 12);
   ctx.stroke();
 
-  ctx.fillStyle = VERDE;
+  ctx.fillStyle = paleta.verde;
   ctx.textAlign = "center";
   ctx.font = `800 9px ${F_CORPO}`;
   ctx.letterSpacing = "3px";
@@ -121,6 +154,7 @@ function carimbo(ctx: CanvasRenderingContext2D, texto: string, cx: number, cy: n
  */
 function percorrer(
   ctx: CanvasRenderingContext2D,
+  paleta: Paleta,
   dados: DadosOrcamento,
   linhasNome: string[],
   pintar: boolean
@@ -131,7 +165,7 @@ function percorrer(
   if (pintar) {
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    ctx.fillStyle = TINTA;
+    ctx.fillStyle = paleta.tinta;
     ctx.font = `700 19px ${F_DISPLAY}`;
     ctx.letterSpacing = "2px";
     ctx.fillText(`★ ${dados.empresa.toUpperCase()} ★`, meio, y + 15);
@@ -139,7 +173,7 @@ function percorrer(
   y += 22;
 
   if (pintar) {
-    ctx.fillStyle = SUAVE;
+    ctx.fillStyle = paleta.suave;
     ctx.font = `700 10px ${F_CORPO}`;
     ctx.letterSpacing = "3px";
     ctx.fillText("ORÇAMENTO", meio, y + 10);
@@ -159,7 +193,7 @@ function percorrer(
   y += 20;
 
   if (pintar) {
-    ctx.fillStyle = TINTA;
+    ctx.fillStyle = paleta.tinta;
     ctx.font = `800 17px ${F_CORPO}`;
     ctx.letterSpacing = "0px";
   }
@@ -170,7 +204,7 @@ function percorrer(
 
   if (dados.cores) {
     if (pintar) {
-      ctx.fillStyle = SUAVE;
+      ctx.fillStyle = paleta.suave;
       ctx.font = `600 13px ${F_CORPO}`;
       ctx.letterSpacing = "0px";
       ctx.fillText(dados.cores, meio, y + 13);
@@ -179,11 +213,12 @@ function percorrer(
   }
 
   y += 24; // folga antes do carimbo
-  if (pintar) carimbo(ctx, brl(dados.preco), meio, y + CARIMBO_ALTURA / 2);
+  if (pintar)
+    carimbo(ctx, paleta, brl(dados.preco), meio, y + CARIMBO_ALTURA / 2);
   y += CARIMBO_ALTURA;
 
   if (pintar) {
-    ctx.fillStyle = SUAVE;
+    ctx.fillStyle = paleta.suave;
     ctx.font = `600 11px ${F_CORPO}`;
     ctx.letterSpacing = "1px";
     ctx.fillText(`orçamento de ${dataBR(dados.data)}`, meio, y + 22);
@@ -195,10 +230,10 @@ function percorrer(
 }
 
 /** O papel: retângulo de cantos arredondados em cima e ziguezague embaixo. */
-function papel(ctx: CanvasRenderingContext2D, altura: number) {
+function papel(ctx: CanvasRenderingContext2D, paleta: Paleta, altura: number) {
   const corpo = altura - DENTE;
 
-  ctx.fillStyle = PAPEL;
+  ctx.fillStyle = paleta.papel;
   ctx.beginPath();
   ctx.roundRect(0, 0, LARGURA, corpo, [CANTO, CANTO, 0, 0]);
   ctx.fill();
@@ -222,6 +257,8 @@ export function desenharOrcamento(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
+  const paleta = lerPaleta();
+
   // Medir com a fonte e o espaçamento certos, senão a quebra de linha erra.
   ctx.letterSpacing = "0px";
   ctx.font = `800 17px ${F_CORPO}`;
@@ -231,7 +268,7 @@ export function desenharOrcamento(
     (t) => ctx.measureText(t).width
   );
 
-  const altura = Math.ceil(percorrer(ctx, dados, linhasNome, false));
+  const altura = Math.ceil(percorrer(ctx, paleta, dados, linhasNome, false));
 
   // Mexer em width/height zera o contexto — por isso a medição vem antes.
   canvas.width = LARGURA * ESCALA;
@@ -239,9 +276,9 @@ export function desenharOrcamento(
   ctx.scale(ESCALA, ESCALA);
 
   // Fundo opaco: PNG transparente fica preto em alguns visualizadores de zap.
-  ctx.fillStyle = FUNDO;
+  ctx.fillStyle = paleta.fundo;
   ctx.fillRect(0, 0, LARGURA, altura);
 
-  papel(ctx, altura);
-  percorrer(ctx, dados, linhasNome, true);
+  papel(ctx, paleta, altura);
+  percorrer(ctx, paleta, dados, linhasNome, true);
 }

@@ -114,7 +114,10 @@ function Resultado() {
   if (!resultado || !produto || !config) return <Carregando />;
 
   return (
-    <main className="mx-auto w-full max-w-md lg:max-w-4xl">
+    // max-w-3xl (768px) menos o gap-8 (32px) sobra 368px por coluna — bem
+    // perto dos 360px naturais da notinha em canvas, então as duas notinhas
+    // ficam do mesmo tamanho em vez de uma esticar mais que a outra.
+    <main className="mx-auto w-full max-w-md lg:max-w-3xl">
       <Confete ativo={confete} />
 
       <div className="mb-4">
