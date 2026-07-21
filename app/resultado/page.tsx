@@ -86,27 +86,31 @@ function Resultado() {
     return () => clearTimeout(t);
   }, [ehNovo]);
 
+  // A peça como está sendo vendida DESTA VEZ, que pode usar cores diferentes das
+  // cores salvas na peça. Ambas as notinhas devem ler daqui, senão vão discordar.
+  const alvo = useMemo(() => {
+    if (!produto) return null;
+    const escolhidas = coresParam ? coresParam.split(",").filter(Boolean) : null;
+    return escolhidas ? { ...produto, coresIds: escolhidas } : produto;
+  }, [produto, coresParam]);
+
   // Com ?cores=, calcula com as cores DESTA venda em vez das da peça. É a
   // mesma calcularProduto — nenhuma regra de preço nova.
   const resultado = useMemo(() => {
-    if (!produto || !config) return null;
-    const escolhidas = coresParam ? coresParam.split(",").filter(Boolean) : null;
-    const alvo = escolhidas ? { ...produto, coresIds: escolhidas } : produto;
+    if (!alvo || !config) return null;
     return calcularProduto(alvo, config, cores);
-  }, [produto, config, cores, coresParam]);
+  }, [alvo, config, cores]);
 
   // Memoizado porque NotinhaCliente redesenha o canvas toda vez que `dados`
   // muda de identidade — sem isto, um objeto novo a cada render viraria um
   // loop de repintura.
   const dadosOrcamento = useMemo(() => {
-    if (!produto || !resultado) return null;
-    const escolhidas = coresParam ? coresParam.split(",").filter(Boolean) : null;
-    const alvo = escolhidas ? { ...produto, coresIds: escolhidas } : produto;
+    if (!alvo || !resultado) return null;
     return {
       ...montarOrcamento(alvo, resultado, cores, empresa, new Date()),
       cliente: clienteParam,
     };
-  }, [produto, resultado, cores, empresa, coresParam, clienteParam]);
+  }, [alvo, resultado, cores, empresa, clienteParam]);
 
   async function vendi() {
     if (!produto || !resultado || salvando) return;
@@ -150,7 +154,7 @@ function Resultado() {
     );
   }
 
-  if (!resultado || !produto || !config) return <Carregando />;
+  if (!resultado || !produto || !config || !alvo) return <Carregando />;
 
   return (
     // max-w-4xl deixa 432px por coluna. Já tentei apertar pra 3xl (368px) pra
@@ -179,7 +183,7 @@ function Resultado() {
             só sua
           </p>
           <NotinhaInterna
-            produto={produto}
+            produto={alvo}
             config={config}
             cores={cores}
             resultado={resultado}
