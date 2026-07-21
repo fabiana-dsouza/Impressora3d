@@ -339,3 +339,106 @@ where lower(u.email) in (
             -- <-- adicione aqui os emails da família
 )
 on conflict (user_id) do update set status = 'ativa', pago_ate = null;
+
+-- =====================================================================
+-- CLIENTES E VENDAS
+-- Uma venda é uma linha com dono, cor, preço e custo CONGELADOS. O
+-- orçamento não é guardado: ela decide na hora e só o "vendi" grava.
+-- =====================================================================
+
+-- ---------- Clientes ----------
+-- O nome é editável, então a chave é um id de verdade e não o nome.
+create table if not exists public.clientes (
+  id        text not null,
+  user_id   uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  nome      text not null,
+  criado_em timestamptz not null default now(),
+  -- Última venda pra essa pessoa: é o que ordena as pastilhas de atalho.
+  usado_em  timestamptz not null default now(),
+  primary key (user_id, id)
+);
+
+-- Dois "Maria" seriam duas pastilhas idênticas na tela.
+-- ATENÇÃO: é lower() e nada além disso. `chaveDoCliente` no TypeScript
+-- normaliza igualzinho; se um tirasse acento e o outro não, a busca não
+-- acharia a linha e o insert seguinte quebraria aqui.
+create unique index if not exists clientes_nome_unico
+  on public.clientes (user_id, lower(nome));
+
+create index if not exists clientes_usuario_uso
+  on public.clientes (user_id, usado_em desc);
+
+-- ---------- Vendas ----------
+create table if not exists public.vendas (
+  id           text not null,
+  user_id      uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  produto_id   text,                        -- link fraco: só pro "vender de novo"
+  produto_nome text not null,               -- congelado
+  cliente_id   text,                        -- NULO = "** falta o nome **"
+  cores_ids    jsonb   not null default '[]',
+  preco        numeric not null default 0,  -- congelado
+  custo        numeric not null default 0,  -- congelado
+  pago_em      timestamptz,                 -- NULO = falta pagar
+  criado_em    timestamptz not null default now(),
+  primary key (user_id, id)
+);
+
+create index if not exists vendas_usuario_data
+  on public.vendas (user_id, criado_em desc);
+
+-- Nem produto_id nem cliente_id têm foreign key, de propósito:
+-- NADA fora desta tabela pode destruir histórico de dinheiro. Um FK com
+-- cascata faria apagar uma peça (ou um cliente) apagar vendas junto. O nome
+-- da peça já está congelado; sem cliente, a linha vira "** falta o nome **",
+-- que é exatamente o estado editável.
+
+-- ---------- Migrações já feitas ----------
+-- Tabela própria, e NÃO uma coluna em `perfis`: aquela tabela tem
+-- `grant update (nome_empresa)` como trava de segurança deliberada, e
+-- alargar o grant pra caber um flag de conveniência enfraqueceria a trava.
+create table if not exists public.migracoes (
+  user_id  uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  nome     text not null,
+  feita_em timestamptz not null default now(),
+  primary key (user_id, nome)
+);
+
+alter table public.clientes  enable row level security;
+alter table public.vendas    enable row level security;
+alter table public.migracoes enable row level security;
+
+drop policy if exists "dono ve clientes" on public.clientes;
+drop policy if exists "dono edita clientes" on public.clientes;
+drop policy if exists "dono apaga clientes" on public.clientes;
+drop policy if exists "cria cliente com assinatura" on public.clientes;
+
+create policy "dono ve clientes" on public.clientes
+  for select using (auth.uid() = user_id);
+create policy "dono edita clientes" on public.clientes
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "dono apaga clientes" on public.clientes
+  for delete using (auth.uid() = user_id);
+create policy "cria cliente com assinatura" on public.clientes
+  for insert with check (auth.uid() = user_id and public.assinatura_ativa());
+
+drop policy if exists "dono ve vendas" on public.vendas;
+drop policy if exists "dono edita vendas" on public.vendas;
+drop policy if exists "dono apaga vendas" on public.vendas;
+drop policy if exists "cria venda com assinatura" on public.vendas;
+
+create policy "dono ve vendas" on public.vendas
+  for select using (auth.uid() = user_id);
+create policy "dono edita vendas" on public.vendas
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "dono apaga vendas" on public.vendas
+  for delete using (auth.uid() = user_id);
+create policy "cria venda com assinatura" on public.vendas
+  for insert with check (auth.uid() = user_id and public.assinatura_ativa());
+
+drop policy if exists "dono ve migracoes" on public.migracoes;
+drop policy if exists "dono marca migracoes" on public.migracoes;
+
+create policy "dono ve migracoes" on public.migracoes
+  for select using (auth.uid() = user_id);
+create policy "dono marca migracoes" on public.migracoes
+  for insert with check (auth.uid() = user_id);
