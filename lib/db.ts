@@ -7,6 +7,7 @@ import { supabase } from "./supabase/client";
 import { CONFIG_PADRAO, CORES_PADRAO, EMPRESA_PADRAO } from "./defaults";
 import type { Cliente, Config, Cor, Produto, Venda } from "./types";
 import type { NovaVenda } from "./vendas";
+import { linhasDaMigracao } from "./vendas";
 import {
   lerConfig as lerConfigLocal,
   lerCores as lerCoresLocal,
@@ -642,4 +643,63 @@ export async function definirClienteDaVenda(
     .eq("user_id", uid)
     .eq("id", vendaId);
   if (error) throw error;
+}
+
+/** Nome da linha de controle em `migracoes`. Não mudar: é a trava. */
+const MIGRACAO_VENDAS = "vendas-do-contador";
+
+/**
+ * Converte `produtos.vendidos` em linhas de venda pagas, uma vez por conta.
+ *
+ * O contador antigo NÃO é apagado: fica parado, sem ninguém ler. Se esta
+ * migração sair errada, dá pra refazer a partir dele — apagar seria queimar
+ * a ponte.
+ *
+ * Devolve true se migrou agora (quem chama recarrega as vendas).
+ */
+export async function migrarVendasAntigas(
+  produtos: Produto[],
+  config: Config,
+  cores: Cor[]
+): Promise<boolean> {
+  const uid = await idUsuario();
+  const sb = supabase();
+
+  const jaFoi = await sb
+    .from("migracoes")
+    .select("nome")
+    .eq("user_id", uid)
+    .eq("nome", MIGRACAO_VENDAS)
+    .maybeSingle();
+  if (jaFoi.error) throw jaFoi.error;
+  if (jaFoi.data) return false;
+
+  const linhas = linhasDaMigracao(produtos, config, cores);
+
+  if (linhas.length > 0) {
+    const { error } = await sb.from("vendas").insert(
+      linhas.map((l) => ({
+        id: novoId(),
+        user_id: uid,
+        produto_id: l.produtoId,
+        produto_nome: l.produtoNome,
+        cliente_id: l.clienteId,
+        cores_ids: l.coresIds,
+        preco: l.preco,
+        custo: l.custo,
+        pago_em: l.pagoEm === null ? null : new Date(l.pagoEm).toISOString(),
+      }))
+    );
+    if (error) throw error;
+  }
+
+  // A marca vai DEPOIS das linhas: se o insert acima falhar, a migração não
+  // é dada como feita e roda de novo na próxima visita. Marcar antes deixaria
+  // o dado velho pra trás pra sempre.
+  const { error: e2 } = await sb
+    .from("migracoes")
+    .insert({ user_id: uid, nome: MIGRACAO_VENDAS });
+  if (e2) throw e2;
+
+  return linhas.length > 0;
 }
