@@ -362,6 +362,10 @@ create table if not exists public.clientes (
 -- ATENÇÃO: é lower() e nada além disso. `chaveDoCliente` no TypeScript
 -- normaliza igualzinho; se um tirasse acento e o outro não, a busca não
 -- acharia a linha e o insert seguinte quebraria aqui.
+-- DETALHE: o índice NÃO colapsa espaços internos (não distingue
+-- "Maria  Silva" com dois espaços de "Maria Silva" com um). Portanto
+-- TODA escrita precisa armazenar `nomeLimpo(nome)` de lib/clientes.ts
+-- que já faz trim e colapso de espaços: o banco só guarda lower().
 create unique index if not exists clientes_nome_unico
   on public.clientes (user_id, lower(nome));
 
@@ -375,7 +379,7 @@ create table if not exists public.vendas (
   produto_id   text,                        -- link fraco: só pro "vender de novo"
   produto_nome text not null,               -- congelado
   cliente_id   text,                        -- NULO = "** falta o nome **"
-  cores_ids    jsonb   not null default '[]',
+  cores_ids    jsonb not null default '[]',
   preco        numeric not null default 0,  -- congelado
   custo        numeric not null default 0,  -- congelado
   pago_em      timestamptz,                 -- NULO = falta pagar
@@ -396,6 +400,12 @@ create index if not exists vendas_usuario_data
 -- Tabela própria, e NÃO uma coluna em `perfis`: aquela tabela tem
 -- `grant update (nome_empresa)` como trava de segurança deliberada, e
 -- alargar o grant pra caber um flag de conveniência enfraqueceria a trava.
+--
+-- CONTRATO: a linha de marcador é inserida SÓ DEPOIS que os writes da
+-- migração terminaram com sucesso. Portanto nunca há necessidade de
+-- apagar/atualizar: não há insert ou delete/update policy.
+-- Se uma migração futura marcar-se pronta ANTES de acabar, não tem jeito
+-- de desfazer sem um `delete` manual contra o banco vivo.
 create table if not exists public.migracoes (
   user_id  uuid not null default auth.uid() references auth.users (id) on delete cascade,
   nome     text not null,
@@ -440,5 +450,9 @@ drop policy if exists "dono marca migracoes" on public.migracoes;
 
 create policy "dono ve migracoes" on public.migracoes
   for select using (auth.uid() = user_id);
+-- Migrações NÃO são gatilhadas por `assinatura_ativa()`: é um reparo
+-- único dos dados antigos da conta. Quem cancelou a assinatura ainda
+-- precisa poder completar a migração. RLS já confina a linha a
+-- `auth.uid() = user_id`, então ninguém acessa dados de terceiros.
 create policy "dono marca migracoes" on public.migracoes
   for insert with check (auth.uid() = user_id);
