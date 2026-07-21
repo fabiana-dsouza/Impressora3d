@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { lerConfig, lerCores, lerProduto, lerPerfil } from "@/lib/db";
+import * as db from "@/lib/db";
 import { calcularProduto } from "@/lib/calc-produto";
 import { CORES_PADRAO } from "@/lib/defaults";
 import type { Config, Cor, Produto } from "@/lib/types";
@@ -12,6 +13,7 @@ import { Logo } from "@/components/Marca";
 import { IconeAlerta, IconeCasa } from "@/components/Icones";
 import NotinhaInterna from "@/components/NotinhaInterna";
 import NotinhaCliente from "@/components/NotinhaCliente";
+import Dialogo from "@/components/Dialogo";
 import { montarOrcamento } from "@/lib/orcamento";
 
 export default function ResultadoPage() {
@@ -34,9 +36,12 @@ function Carregando() {
 }
 
 function Resultado() {
+  const router = useRouter();
   const params = useSearchParams();
   const id = params.get("id");
   const ehNovo = params.get("novo") === "1";
+  const clienteParam = params.get("cliente") ?? "";
+  const coresParam = params.get("cores");
 
   const [produto, setProduto] = useState<Produto | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
@@ -44,6 +49,8 @@ function Resultado() {
   const [empresa, setEmpresa] = useState("");
   const [carregou, setCarregou] = useState(false);
   const [confete, setConfete] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [avisoVenda, setAvisoVenda] = useState("");
 
   useEffect(() => {
     let vivo = true;
@@ -79,18 +86,50 @@ function Resultado() {
     return () => clearTimeout(t);
   }, [ehNovo]);
 
+  // Com ?cores=, calcula com as cores DESTA venda em vez das da peça. É a
+  // mesma calcularProduto — nenhuma regra de preço nova.
   const resultado = useMemo(() => {
     if (!produto || !config) return null;
-    return calcularProduto(produto, config, cores);
-  }, [produto, config, cores]);
+    const escolhidas = coresParam ? coresParam.split(",").filter(Boolean) : null;
+    const alvo = escolhidas ? { ...produto, coresIds: escolhidas } : produto;
+    return calcularProduto(alvo, config, cores);
+  }, [produto, config, cores, coresParam]);
 
   // Memoizado porque NotinhaCliente redesenha o canvas toda vez que `dados`
   // muda de identidade — sem isto, um objeto novo a cada render viraria um
   // loop de repintura.
   const dadosOrcamento = useMemo(() => {
     if (!produto || !resultado) return null;
-    return montarOrcamento(produto, resultado, cores, empresa, new Date());
-  }, [produto, resultado, cores, empresa]);
+    const escolhidas = coresParam ? coresParam.split(",").filter(Boolean) : null;
+    const alvo = escolhidas ? { ...produto, coresIds: escolhidas } : produto;
+    return {
+      ...montarOrcamento(alvo, resultado, cores, empresa, new Date()),
+      cliente: clienteParam,
+    };
+  }, [produto, resultado, cores, empresa, coresParam, clienteParam]);
+
+  async function vendi() {
+    if (!produto || !resultado || salvando) return;
+    setSalvando(true);
+    try {
+      const clienteId = await db.acharOuCriarCliente(clienteParam);
+      await db.criarVenda({
+        produtoId: produto.id,
+        produtoNome: produto.nome,
+        clienteId,
+        coresIds: coresParam ? coresParam.split(",").filter(Boolean) : produto.coresIds,
+        preco: resultado.precoVenda,
+        custo: resultado.custoTotal,
+        // Vendeu agora, mas ainda não recebeu — quem marca é ela, depois.
+        pagoEm: null,
+      });
+      router.push("/fabrica?aba=vendidos");
+    } catch (e) {
+      console.error(e);
+      setAvisoVenda("Não consegui anotar a venda. Confere a internet!");
+      setSalvando(false);
+    }
+  }
 
   if (!id || (carregou && produto === null)) {
     return (
@@ -155,6 +194,41 @@ function Resultado() {
           {dadosOrcamento && <NotinhaCliente dados={dadosOrcamento} />}
         </section>
       </div>
+
+      {clienteParam && (
+        <div className="mt-10">
+          <p className="mb-3 text-center text-base font-extrabold text-mute">
+            E aí, {clienteParam} vai levar?
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row-reverse">
+            <button
+              onClick={vendi}
+              disabled={salvando}
+              className="btn-grande btn-neon flex-1 disabled:opacity-60"
+            >
+              Vendi!
+            </button>
+            <button
+              onClick={() => router.push("/fabrica")}
+              disabled={salvando}
+              className="btn-grande btn-escuro flex-1 disabled:opacity-60"
+            >
+              Não vendi
+            </button>
+          </div>
+          <p className="mt-3 text-center font-bold text-mute">
+            Se vendeu, dá pra marcar quando o dinheiro chegar.
+          </p>
+        </div>
+      )}
+
+      {avisoVenda && (
+        <Dialogo
+          titulo="Não deu certo"
+          texto={avisoVenda}
+          onFechar={() => setAvisoVenda("")}
+        />
+      )}
     </main>
   );
 }
