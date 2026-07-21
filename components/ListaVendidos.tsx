@@ -106,7 +106,7 @@ export default function ListaVendidos({
                   ) : (
                     <button
                       onClick={() => onNomear(v)}
-                      className="display truncate text-lg font-bold text-perigo underline"
+                      className="inline-flex items-center px-2 rounded min-h-[48px] text-lg font-bold text-ciano underline"
                     >
                       ** falta o nome **
                     </button>
