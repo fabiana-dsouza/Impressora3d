@@ -72,7 +72,10 @@ export default function Dialogo({
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
           <button
-            autoFocus
+            // Só foca o botão quando não há conteúdo próprio (ex: um campo de
+            // texto): se houver children, é ele quem deve ganhar o foco — numa
+            // tela de digitar nome, é o teclado que tem que abrir, não o botão.
+            autoFocus={!children}
             onClick={() => {
               onConfirmar?.();
               onFechar();

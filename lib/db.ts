@@ -726,7 +726,11 @@ export async function migrarVendasAntigas(
   const { error: e2 } = await sb
     .from("migracoes")
     .insert({ user_id: uid, nome: MIGRACAO_VENDAS });
-  if (e2) throw e2;
+  // 23505 = violação de unicidade: outra aba (ou outra chamada concorrente
+  // desta mesma aba) já ganhou a corrida e gravou a marca primeiro. Não é
+  // falha — as linhas já foram gravadas acima com upsert de ids determinísticos,
+  // então quem perdeu a corrida não precisa (nem deve) fazer nada de novo.
+  if (e2 && (e2 as { code?: string }).code !== "23505") throw e2;
 
   return linhas.length > 0;
 }

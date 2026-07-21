@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as db from "@/lib/db";
 import { calcularProduto, acharCor } from "@/lib/calc-produto";
 import type { Cliente, Config, Cor, Produto, Venda } from "@/lib/types";
@@ -68,6 +68,7 @@ export default function Home() {
   const [aviso, setAviso] = useState("");
   const [apagando, setApagando] = useState<Produto | null>(null);
   const [vendas, setVendas] = useState<Venda[]>([]);
+  const [vendasCarregou, setVendasCarregou] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [nomeando, setNomeando] = useState<Venda | null>(null);
   const [nomeNovo, setNomeNovo] = useState("");
@@ -119,10 +120,21 @@ export default function Home() {
     };
   }, []);
 
+  // Tentou migrar nesta montagem da tela? Um ref, não estado: `produtos` ganha
+  // identidade nova sempre que um produto é apagado, o que dispara este efeito
+  // de novo. Sem essa trava, uma exclusão durante a primeira migração ainda em
+  // andamento dispararia uma SEGUNDA chamada concorrente — e quem perdesse a
+  // corrida da marca cairia no catch mesmo a migração tendo dado certo. Tem
+  // que ser ref (não useState) porque o estado não teria comitado ainda
+  // quando a segunda chamada começasse.
+  const jaTentouMigrar = useRef(false);
+
   // Migra o contador antigo ANTES de mostrar a aba, senão a primeira
   // renderização apareceria com a lista vazia e o cofrinho zerado.
   useEffect(() => {
     if (!carregou || !config) return;
+    if (jaTentouMigrar.current) return;
+    jaTentouMigrar.current = true;
     let vivo = true;
     (async () => {
       try {
@@ -143,8 +155,13 @@ export default function Home() {
         // aqui apagaria o histórico dela da tela sem explicação nenhuma.
         console.error(e);
         setAvisoMigracao(
-          "Não consegui carregar suas vendas antigas. Confere a internet e tenta de novo (sai e entra na tela)!"
+          "Não sumiu nada! As vendas de antes só não carregaram ainda. Sai dessa tela e entra de novo que a gente tenta outra vez."
         );
+      } finally {
+        // "Terminou de tentar" conta tanto sucesso quanto erro — senão a aba
+        // Vendidos ficaria mostrando "carregando" pra sempre quando desse
+        // errado, em vez de deixar o aviso da migração explicar.
+        if (vivo) setVendasCarregou(true);
       }
     })();
     return () => {
@@ -378,6 +395,16 @@ export default function Home() {
             ))}
           </div>
         )
+      ) : !vendasCarregou ? (
+        /* ---------- ABA: VENDIDOS (ainda carregando) ---------- */
+        // Sem isto, quem acabou de vender é jogada de volta pra esta aba e vê
+        // por um instante "Ainda não vendeu nada" — a lista de vendas some
+        // no mount, mas ainda não voltou do banco. Mostrar "carregando" em
+        // vez do vazio evita esse susto falso.
+        <div className="card flex flex-col items-center py-8 text-center">
+          <Logo size={54} className="animate-wiggle" />
+          <p className="mt-3 font-extrabold text-mute">Contando suas vendas...</p>
+        </div>
       ) : (
         /* ---------- ABA: VENDIDOS ---------- */
         <ListaVendidos
@@ -432,7 +459,7 @@ export default function Home() {
       {avisoMigracao && (
         <Dialogo
           tom="perigo"
-          titulo="Vendas antigas sumidas"
+          titulo="Vendas antigas ainda não chegaram"
           texto={avisoMigracao}
           onFechar={() => setAvisoMigracao("")}
         />
