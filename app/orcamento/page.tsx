@@ -8,7 +8,6 @@ import { nomeLimpo } from "@/lib/clientes";
 import { CORES_PADRAO } from "@/lib/defaults";
 import type { Cliente, Cor, Produto } from "@/lib/types";
 import Carretel from "@/components/Carretel";
-import Dialogo from "@/components/Dialogo";
 import { Logo } from "@/components/Marca";
 import { IconeCasa } from "@/components/Icones";
 
@@ -44,7 +43,6 @@ function Orcamento() {
   const [nome, setNome] = useState("");
   const [coresIds, setCoresIds] = useState<string[]>([]);
   const [carregou, setCarregou] = useState(false);
-  const [aviso, setAviso] = useState("");
 
   useEffect(() => {
     let vivo = true;
@@ -218,10 +216,6 @@ function Orcamento() {
             ? "Escreve pra quem é essa peça."
             : "Escolhe pelo menos uma cor."}
         </p>
-      )}
-
-      {aviso && (
-        <Dialogo titulo="Não deu certo" texto={aviso} onFechar={() => setAviso("")} />
       )}
     </main>
   );

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as db from "@/lib/db";
+import { renomearCliente } from "@/lib/db";
 import { calcularProduto, acharCor } from "@/lib/calc-produto";
 import type { Cliente, Config, Cor, Produto, Venda } from "@/lib/types";
 import { CORES_PADRAO, EMPRESA_PADRAO } from "@/lib/defaults";
@@ -207,12 +208,27 @@ export default function Home() {
     if (!alvo) return;
     setNomeando(null);
     try {
-      const clienteId = await db.acharOuCriarCliente(nomeNovo);
-      await db.definirClienteDaVenda(alvo.id, clienteId);
+      if (alvo.clienteId === null) {
+        // Venda sem cliente (ex: migração do contador antigo): está
+        // ganhando um nome pela primeira vez, então gruda nela.
+        const clienteId = await db.acharOuCriarCliente(nomeNovo);
+        await db.definirClienteDaVenda(alvo.id, clienteId);
+      } else {
+        // Venda já tinha cliente: "Trocar o nome" corrige o cliente em si,
+        // não troca pra outro — assim todas as vendas dele (que apontam
+        // pro mesmo id) mudam de nome juntas.
+        await renomearCliente(alvo.clienteId, nomeNovo);
+      }
       const [vs, cls] = await Promise.all([db.lerVendas(), db.lerClientes()]);
       setVendas(vs);
       setClientes(cls);
     } catch (e) {
+      // 23505 = já existe outra cliente com esse nome (índice único em
+      // lower(nome)). Mensagem simples em vez de oferecer juntar as duas.
+      if ((e as { code?: string })?.code === "23505") {
+        setAviso("Você já tem uma cliente com esse nome!");
+        return;
+      }
       falhou(e);
     }
   }

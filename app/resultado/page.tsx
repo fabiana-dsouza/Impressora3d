@@ -3,8 +3,14 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { lerConfig, lerCores, lerProduto, lerPerfil } from "@/lib/db";
-import * as db from "@/lib/db";
+import {
+  lerConfig,
+  lerCores,
+  lerProduto,
+  lerPerfil,
+  acharOuCriarCliente,
+  criarVenda,
+} from "@/lib/db";
 import { calcularProduto } from "@/lib/calc-produto";
 import { CORES_PADRAO } from "@/lib/defaults";
 import type { Config, Cor, Produto } from "@/lib/types";
@@ -116,8 +122,8 @@ function Resultado() {
     if (!produto || !resultado || salvando) return;
     setSalvando(true);
     try {
-      const clienteId = await db.acharOuCriarCliente(clienteParam);
-      await db.criarVenda({
+      const clienteId = await acharOuCriarCliente(clienteParam);
+      await criarVenda({
         produtoId: produto.id,
         produtoNome: produto.nome,
         clienteId,
