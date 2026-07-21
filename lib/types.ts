@@ -84,3 +84,35 @@ export interface ResultadoCalculo {
   precoVenda: number;
   lucro: number;
 }
+
+/** Alguém pra quem ela vende. O nome é editável, por isso o id é separado. */
+export interface Cliente {
+  id: string;
+  nome: string;
+  criadoEm: number;
+  /** Última vez que ela vendeu pra essa pessoa — ordena as pastilhas. */
+  usadoEm: number;
+}
+
+/**
+ * Uma venda que aconteceu.
+ *
+ * `preco` e `custo` são CONGELADOS na hora da venda: o cofrinho mostra lucro,
+ * e sem congelar os dois o lucro de uma venda antiga mudaria sozinho quando o
+ * preço do filamento mudasse.
+ */
+export interface Venda {
+  id: string;
+  /** Link fraco: só serve pro "vender de novo". Nulo se a peça foi apagada. */
+  produtoId: string | null;
+  /** Congelado, pro registro sobreviver a apagar a peça. */
+  produtoNome: string;
+  /** Nulo = "** falta o nome **", que é o estado editável. */
+  clienteId: string | null;
+  coresIds: string[];
+  preco: number;
+  custo: number;
+  /** Nulo = falta pagar. Só conta no cofrinho depois de preenchido. */
+  pagoEm: number | null;
+  criadoEm: number;
+}
