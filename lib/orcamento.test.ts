@@ -75,6 +75,7 @@ describe("montar o orçamento do cliente", () => {
   it("não carrega nenhum número de custo ou lucro", () => {
     const d = montarOrcamento(PRODUTO, RESULTADO, CORES, "Loja", HOJE);
     expect(Object.keys(d).sort()).toEqual([
+      "cliente",
       "cores",
       "data",
       "empresa",
@@ -126,5 +127,25 @@ describe("texto pro leitor de tela", () => {
     expect(textoDaNotinha(d)).toBe(
       `Orçamento da Loja: Dinossauro, preço ${brl(25)}, em 19/07/2026.`
     );
+  });
+});
+
+describe("o cliente na notinha", () => {
+  it("montarOrcamento não inventa cliente — quem digita é a tela", () => {
+    const d = montarOrcamento(PRODUTO, RESULTADO, CORES, "Loja", HOJE);
+    expect(d.cliente).toBe("");
+  });
+
+  it("com cliente, o leitor de tela anuncia pra quem é", () => {
+    const d = {
+      ...montarOrcamento(PRODUTO, RESULTADO, CORES, "Loja", HOJE),
+      cliente: "Tio Fernando",
+    };
+    expect(textoDaNotinha(d)).toContain("para Tio Fernando");
+  });
+
+  it("sem cliente, não sobra 'para' solto na frase", () => {
+    const d = montarOrcamento(PRODUTO, RESULTADO, CORES, "Loja", HOJE);
+    expect(textoDaNotinha(d)).not.toContain("para ");
   });
 });

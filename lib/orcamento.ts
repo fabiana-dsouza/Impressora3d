@@ -12,6 +12,8 @@ import { brl } from "./format";
  */
 export interface DadosOrcamento {
   empresa: string;
+  /** Pra quem é o orçamento. "" = a notinha não mostra linha nenhuma. */
+  cliente: string;
   produto: string;
   /** nomes das cores já juntados, ex: "Roxo + Verde". "" se não tiver cor. */
   cores: string;
@@ -32,6 +34,9 @@ export function montarOrcamento(
 ): DadosOrcamento {
   return {
     empresa: nomeEmpresa.trim() || EMPRESA_PADRAO,
+    // Vazio de propósito: o nome não vem do produto, vem do que ela digita
+    // na tela de fazer orçamento.
+    cliente: "",
     produto: produto.nome.trim() || "Peça sem nome",
     cores: produto.coresIds.map((id) => acharCor(id, cores).nome).join(" + "),
     preco: resultado.precoVenda,
@@ -65,7 +70,8 @@ export function nomeDoArquivo(nomeProduto: string): string {
  */
 export function textoDaNotinha(d: DadosOrcamento): string {
   const cores = d.cores ? `, nas cores ${d.cores}` : "";
-  return `Orçamento da ${d.empresa}: ${d.produto}${cores}, preço ${brl(
+  const para = d.cliente ? `, para ${d.cliente}` : "";
+  return `Orçamento da ${d.empresa}: ${d.produto}${para}${cores}, preço ${brl(
     d.preco
   )}, em ${dataBR(d.data)}.`;
 }

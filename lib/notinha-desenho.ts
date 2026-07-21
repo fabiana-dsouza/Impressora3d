@@ -180,6 +180,24 @@ function percorrer(
   }
   y += 18;
 
+  // Só existe se ela digitou um nome. O `y` avança FORA do if (pintar),
+  // igual aos outros blocos, senão a passada de medir e a de pintar
+  // discordariam da altura do papel.
+  if (dados.cliente) {
+    if (pintar) {
+      ctx.fillStyle = paleta.tinta;
+      ctx.font = `800 12px ${F_CORPO}`;
+      ctx.letterSpacing = "2px";
+      ctx.fillText(
+        `PARA ${dados.cliente.toUpperCase()}`,
+        meio,
+        y + 12
+      );
+      ctx.letterSpacing = "0px";
+    }
+    y += 20;
+  }
+
   if (pintar) {
     ctx.strokeStyle = TRACEJADO;
     ctx.lineWidth = 2;
@@ -259,6 +277,17 @@ export function desenharOrcamento(
 
   const paleta = lerPaleta();
 
+  // Duas barreiras contra nome comprido: o maxLength do campo na tela, e
+  // este corte aqui, que é o que impede o texto de furar o papel.
+  ctx.font = `800 12px ${F_CORPO}`;
+  const [clienteCabendo] = quebrarEmLinhas(
+    dados.cliente,
+    LARGURA - MARGEM * 2,
+    (t) => ctx.measureText(t).width,
+    1
+  );
+  const paraDesenhar = { ...dados, cliente: dados.cliente ? clienteCabendo : "" };
+
   // Medir com a fonte e o espaçamento certos, senão a quebra de linha erra.
   ctx.letterSpacing = "0px";
   ctx.font = `800 17px ${F_CORPO}`;
@@ -268,7 +297,9 @@ export function desenharOrcamento(
     (t) => ctx.measureText(t).width
   );
 
-  const altura = Math.ceil(percorrer(ctx, paleta, dados, linhasNome, false));
+  const altura = Math.ceil(
+    percorrer(ctx, paleta, paraDesenhar, linhasNome, false)
+  );
 
   // Mexer em width/height zera o contexto — por isso a medição vem antes.
   canvas.width = LARGURA * ESCALA;
@@ -280,5 +311,5 @@ export function desenharOrcamento(
   ctx.fillRect(0, 0, LARGURA, altura);
 
   papel(ctx, paleta, altura);
-  percorrer(ctx, paleta, dados, linhasNome, true);
+  percorrer(ctx, paleta, paraDesenhar, linhasNome, true);
 }
