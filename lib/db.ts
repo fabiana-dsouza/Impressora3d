@@ -5,7 +5,8 @@
  */
 import { supabase } from "./supabase/client";
 import { CONFIG_PADRAO, CORES_PADRAO, EMPRESA_PADRAO } from "./defaults";
-import type { Cliente, Config, Cor, Produto } from "./types";
+import type { Cliente, Config, Cor, Produto, Venda } from "./types";
+import type { NovaVenda } from "./vendas";
 import {
   lerConfig as lerConfigLocal,
   lerCores as lerCoresLocal,
@@ -563,5 +564,82 @@ export async function marcarClienteUsado(id: string): Promise<void> {
     .update({ usado_em: new Date().toISOString() })
     .eq("user_id", uid)
     .eq("id", id);
+  if (error) throw error;
+}
+
+// =====================================================================
+// VENDAS
+// =====================================================================
+
+function paraVenda(r: Linha): Venda {
+  return {
+    id: String(r.id),
+    produtoId: r.produto_id ? String(r.produto_id) : null,
+    produtoNome: String(r.produto_nome),
+    clienteId: r.cliente_id ? String(r.cliente_id) : null,
+    coresIds: Array.isArray(r.cores_ids) ? r.cores_ids.map(String) : [],
+    preco: Number(r.preco) || 0,
+    custo: Number(r.custo) || 0,
+    pagoEm: r.pago_em ? Date.parse(r.pago_em) : null,
+    criadoEm: r.criado_em ? Date.parse(r.criado_em) : 0,
+  };
+}
+
+export async function lerVendas(): Promise<Venda[]> {
+  const uid = await idUsuario();
+  const { data, error } = await supabase()
+    .from("vendas")
+    .select("*")
+    .eq("user_id", uid)
+    .order("criado_em", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(paraVenda);
+}
+
+export async function criarVenda(v: NovaVenda): Promise<string> {
+  const uid = await idUsuario();
+  const id = novoId();
+  const { error } = await supabase().from("vendas").insert({
+    id,
+    user_id: uid,
+    produto_id: v.produtoId,
+    produto_nome: v.produtoNome,
+    cliente_id: v.clienteId,
+    cores_ids: v.coresIds,
+    preco: v.preco,
+    custo: v.custo,
+    pago_em: v.pagoEm === null ? null : new Date(v.pagoEm).toISOString(),
+  });
+  if (error) throw error;
+
+  // Sobe o cliente pro topo das pastilhas. Não trava a venda se falhar:
+  // a ordem dos atalhos é comodidade, a venda é o que importa.
+  if (v.clienteId) {
+    marcarClienteUsado(v.clienteId).catch((e) => console.error(e));
+  }
+
+  return id;
+}
+
+export async function marcarPago(id: string): Promise<void> {
+  const uid = await idUsuario();
+  const { error } = await supabase()
+    .from("vendas")
+    .update({ pago_em: new Date().toISOString() })
+    .eq("user_id", uid)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function definirClienteDaVenda(
+  vendaId: string,
+  clienteId: string
+): Promise<void> {
+  const uid = await idUsuario();
+  const { error } = await supabase()
+    .from("vendas")
+    .update({ cliente_id: clienteId })
+    .eq("user_id", uid)
+    .eq("id", vendaId);
   if (error) throw error;
 }
