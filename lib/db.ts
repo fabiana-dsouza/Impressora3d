@@ -502,9 +502,9 @@ export async function acharOuCriarCliente(nome: string): Promise<string> {
     .from("clientes")
     .select("id")
     .eq("user_id", uid)
-    // Sem curinga, `ilike` é igualdade sem ligar pra maiúscula — o mesmo
-    // critério do índice único `lower(nome)`.
-    .ilike("nome", limpo)
+    // `ilike` é busca de padrão case-insensitive. Os curingas `%` e `_` são
+    // sempre ativos, então a gente escapa eles pra se comportar como igualdade.
+    .ilike("nome", semCuringa(limpo))
     .maybeSingle();
   if (achado.error) throw achado.error;
   if (achado.data?.id) return String(achado.data.id);
@@ -522,8 +522,9 @@ export async function acharOuCriarCliente(nome: string): Promise<string> {
         .from("clientes")
         .select("id")
         .eq("user_id", uid)
-        .ilike("nome", limpo)
+        .ilike("nome", semCuringa(limpo))
         .maybeSingle();
+      if (denovo.error) throw denovo.error;
       if (denovo.data?.id) return String(denovo.data.id);
     }
     throw error;
@@ -544,6 +545,14 @@ export async function renomearCliente(id: string, nome: string): Promise<void> {
     .eq("user_id", uid)
     .eq("id", id);
   if (error) throw error;
+}
+
+/**
+ * Escapa os curingas do LIKE. Sem isto, um cliente chamado "Ana_Maria" casaria
+ * com "AnaXMaria" — o `_` é curinga, e a venda iria pro cliente errado.
+ */
+function semCuringa(texto: string): string {
+  return texto.replace(/[%_\\]/g, "\\$&");
 }
 
 /** Sobe o cliente pro topo das pastilhas. Chamado ao criar uma venda. */
