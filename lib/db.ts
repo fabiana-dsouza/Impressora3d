@@ -5,12 +5,14 @@
  */
 import { supabase } from "./supabase/client";
 import { CONFIG_PADRAO, CORES_PADRAO, EMPRESA_PADRAO } from "./defaults";
-import type { Config, Cor, Produto } from "./types";
+import type { Cliente, Config, Cor, Produto } from "./types";
 import {
   lerConfig as lerConfigLocal,
   lerCores as lerCoresLocal,
   lerProdutos as lerProdutosLocal,
 } from "./storage";
+import { nomeLimpo, chaveDoCliente } from "./clientes";
+import { novoId } from "./format";
 
 type Linha = Record<string, any>;
 
@@ -456,4 +458,101 @@ export async function emailUsuario(): Promise<string> {
 
 export async function sair(): Promise<void> {
   await supabase().auth.signOut();
+}
+
+// =====================================================================
+// CLIENTES
+// =====================================================================
+
+function paraCliente(r: Linha): Cliente {
+  return {
+    id: String(r.id),
+    nome: String(r.nome),
+    criadoEm: r.criado_em ? Date.parse(r.criado_em) : 0,
+    usadoEm: r.usado_em ? Date.parse(r.usado_em) : 0,
+  };
+}
+
+/** Mais recentemente usados primeiro — é a ordem das pastilhas de atalho. */
+export async function lerClientes(): Promise<Cliente[]> {
+  const uid = await idUsuario();
+  const { data, error } = await supabase()
+    .from("clientes")
+    .select("*")
+    .eq("user_id", uid)
+    .order("usado_em", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(paraCliente);
+}
+
+/**
+ * Acha o cliente pelo nome (ignorando maiúscula e espaço sobrando) ou cria.
+ * Devolve o id.
+ */
+export async function acharOuCriarCliente(nome: string): Promise<string> {
+  const limpo = nomeLimpo(nome);
+  if (!chaveDoCliente(nome)) {
+    throw new Error("Escreve o nome de quem vai comprar!");
+  }
+
+  const uid = await idUsuario();
+  const sb = supabase();
+
+  const achado = await sb
+    .from("clientes")
+    .select("id")
+    .eq("user_id", uid)
+    // Sem curinga, `ilike` é igualdade sem ligar pra maiúscula — o mesmo
+    // critério do índice único `lower(nome)`.
+    .ilike("nome", limpo)
+    .maybeSingle();
+  if (achado.error) throw achado.error;
+  if (achado.data?.id) return String(achado.data.id);
+
+  const id = novoId();
+  const { error } = await sb
+    .from("clientes")
+    .insert({ id, user_id: uid, nome: limpo });
+
+  if (error) {
+    // 23505 = violação de unicidade. Duas telas gravando o mesmo nome ao
+    // mesmo tempo: quem perdeu a corrida busca de novo em vez de estourar.
+    if ((error as { code?: string }).code === "23505") {
+      const denovo = await sb
+        .from("clientes")
+        .select("id")
+        .eq("user_id", uid)
+        .ilike("nome", limpo)
+        .maybeSingle();
+      if (denovo.data?.id) return String(denovo.data.id);
+    }
+    throw error;
+  }
+
+  return id;
+}
+
+export async function renomearCliente(id: string, nome: string): Promise<void> {
+  const limpo = nomeLimpo(nome);
+  if (!chaveDoCliente(nome)) {
+    throw new Error("Escreve o nome de quem vai comprar!");
+  }
+  const uid = await idUsuario();
+  const { error } = await supabase()
+    .from("clientes")
+    .update({ nome: limpo })
+    .eq("user_id", uid)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** Sobe o cliente pro topo das pastilhas. Chamado ao criar uma venda. */
+export async function marcarClienteUsado(id: string): Promise<void> {
+  const uid = await idUsuario();
+  const { error } = await supabase()
+    .from("clientes")
+    .update({ usado_em: new Date().toISOString() })
+    .eq("user_id", uid)
+    .eq("id", id);
+  if (error) throw error;
 }
