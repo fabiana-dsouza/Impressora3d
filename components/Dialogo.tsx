@@ -19,6 +19,7 @@ export default function Dialogo({
   cancelar = "Deixa quieto",
   onConfirmar,
   onFechar,
+  children,
 }: {
   titulo: string;
   texto?: string;
@@ -28,6 +29,8 @@ export default function Dialogo({
   cancelar?: string;
   onConfirmar?: () => void;
   onFechar: () => void;
+  /** Conteúdo livre entre o texto e os botões — ex: um campo pra digitar. */
+  children?: React.ReactNode;
 }) {
   // Esc fecha, como em qualquer janelinha.
   useEffect(() => {
@@ -65,6 +68,7 @@ export default function Dialogo({
           {titulo}
         </h2>
         {texto && <p className="mt-1.5 font-bold text-mute">{texto}</p>}
+        {children && <div className="mt-4">{children}</div>}
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
           <button

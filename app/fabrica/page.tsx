@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import * as db from "@/lib/db";
 import { calcularProduto, acharCor } from "@/lib/calc-produto";
-import type { Config, Cor, Produto } from "@/lib/types";
+import type { Cliente, Config, Cor, Produto, Venda } from "@/lib/types";
 import { CORES_PADRAO, EMPRESA_PADRAO } from "@/lib/defaults";
 import Confete from "@/components/Confete";
 import Carretel from "@/components/Carretel";
 import Valor from "@/components/Valor";
 import Dialogo from "@/components/Dialogo";
+import ListaVendidos from "@/components/ListaVendidos";
 import { Logo, ImpressoraIlustracao } from "@/components/Marca";
 import {
   IconeAlerta,
@@ -18,8 +19,6 @@ import {
   IconeLixeira,
   IconeLupa,
   IconeMais,
-  IconeMoeda,
-  IconeTrofeu,
 } from "@/components/Icones";
 
 type Aba = "catalogo" | "vendidos";
@@ -68,6 +67,20 @@ export default function Home() {
   const [festa, setFesta] = useState(false);
   const [aviso, setAviso] = useState("");
   const [apagando, setApagando] = useState<Produto | null>(null);
+  const [vendas, setVendas] = useState<Venda[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [nomeando, setNomeando] = useState<Venda | null>(null);
+  const [nomeNovo, setNomeNovo] = useState("");
+  // Mensagem visível quando migrarVendasAntigas falha — console.error sozinho
+  // deixaria o cofrinho parecendo zerado sem explicar por quê (ver efeito
+  // de migração abaixo).
+  const [avisoMigracao, setAvisoMigracao] = useState("");
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("aba") === "vendidos") {
+      setAba("vendidos");
+    }
+  }, []);
 
   useEffect(() => {
     let vivo = true;
@@ -106,6 +119,39 @@ export default function Home() {
     };
   }, []);
 
+  // Migra o contador antigo ANTES de mostrar a aba, senão a primeira
+  // renderização apareceria com a lista vazia e o cofrinho zerado.
+  useEffect(() => {
+    if (!carregou || !config) return;
+    let vivo = true;
+    (async () => {
+      try {
+        await db.migrarVendasAntigas(produtos, config, cores);
+        const [vs, cls] = await Promise.all([db.lerVendas(), db.lerClientes()]);
+        if (!vivo) return;
+        setVendas(vs);
+        setClientes(cls);
+      } catch (e) {
+        if (!vivo) return;
+        // `vendas` exige assinatura ativa pra inserir; `migracoes` não. Se a
+        // assinatura caducou bem nessa hora, a migração é recusada pelo banco
+        // e estoura aqui — SEM gravar marca (ver migrarVendasAntigas), então
+        // o histórico velho continua intacto e ela pode tentar de novo. Mas
+        // um console.error sozinho deixaria a tela mostrando lista vazia e
+        // cofrinho zerado, sem avisar nada: a aba antiga que mostrava o
+        // contador acabou de sumir nesta mesma tarefa, então esconder o erro
+        // aqui apagaria o histórico dela da tela sem explicação nenhuma.
+        console.error(e);
+        setAvisoMigracao(
+          "Não consegui carregar suas vendas antigas. Confere a internet e tenta de novo (sai e entra na tela)!"
+        );
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [carregou, config, produtos, cores]);
+
   const calculos = useMemo(() => {
     if (!config) return [];
     return produtos.map((p) => ({
@@ -113,13 +159,6 @@ export default function Home() {
       resultado: calcularProduto(p, config, cores),
     }));
   }, [produtos, config, cores]);
-
-  const jaGanhei = calculos.reduce(
-    (s, c) => s + c.resultado.lucro * (c.produto.vendidos || 0),
-    0
-  );
-  const totalVendidos = produtos.reduce((s, p) => s + (p.vendidos || 0), 0);
-  const vendidosLista = calculos.filter((c) => (c.produto.vendidos || 0) > 0);
 
   function falhou(e: unknown) {
     console.error(e);
@@ -135,30 +174,30 @@ export default function Home() {
     });
   }
 
-  function vender(id: string) {
-    const alvo = produtos.find((p) => p.id === id);
-    if (!alvo) return;
-    const novo = (alvo.vendidos || 0) + 1;
-    const anterior = produtos;
-    setProdutos(produtos.map((p) => (p.id === id ? { ...p, vendidos: novo } : p)));
+  function receber(vendaId: string) {
+    const anterior = vendas;
+    setVendas(vendas.map((v) => (v.id === vendaId ? { ...v, pagoEm: Date.now() } : v)));
     setFesta(true);
     setTimeout(() => setFesta(false), 1600);
-    db.atualizarVendidos(id, novo).catch((e) => {
-      setProdutos(anterior);
+    db.marcarPago(vendaId).catch((e) => {
+      setVendas(anterior);
       falhou(e);
     });
   }
 
-  function desfazerVenda(id: string) {
-    const alvo = produtos.find((p) => p.id === id);
+  async function salvarNome() {
+    const alvo = nomeando;
     if (!alvo) return;
-    const novo = Math.max(0, (alvo.vendidos || 0) - 1);
-    const anterior = produtos;
-    setProdutos(produtos.map((p) => (p.id === id ? { ...p, vendidos: novo } : p)));
-    db.atualizarVendidos(id, novo).catch((e) => {
-      setProdutos(anterior);
+    setNomeando(null);
+    try {
+      const clienteId = await db.acharOuCriarCliente(nomeNovo);
+      await db.definirClienteDaVenda(alvo.id, clienteId);
+      const [vs, cls] = await Promise.all([db.lerVendas(), db.lerClientes()]);
+      setVendas(vs);
+      setClientes(cls);
+    } catch (e) {
       falhou(e);
-    });
+    }
   }
 
   return (
@@ -227,7 +266,7 @@ export default function Home() {
             aba === "vendidos" ? "btn-neon" : "btn-escuro"
           }`}
         >
-          Já vendi
+          Vendidos
         </button>
       </div>
 
@@ -287,14 +326,6 @@ export default function Home() {
                       </button>
                     </div>
 
-                    {produto.vendidos > 0 && (
-                      <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-neon/30 bg-neon/10 px-2.5 py-0.5 text-xs font-extrabold text-neon">
-                        <IconeTrofeu size={13} />
-                        {produto.vendidos} vendido
-                        {produto.vendidos > 1 ? "s" : ""}
-                      </p>
-                    )}
-
                     {/* custo e preço lado a lado; o lucro é a estrela, ocupa
                         a linha inteira e fica vermelho se der prejuízo */}
                     <div className="mt-3 grid grid-cols-2 gap-2">
@@ -335,10 +366,10 @@ export default function Home() {
                         <IconeLupa size={16} /> A conta
                       </Link>
                       <button
-                        onClick={() => vender(produto.id)}
-                        className="btn-neon flex flex-[1.3] items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-extrabold"
+                        onClick={() => router.push(`/orcamento?produto=${produto.id}`)}
+                        className="btn-grande btn-neon min-h-[48px] flex-1 text-base"
                       >
-                        <IconeMoeda size={16} /> Vendi 1!
+                        Fazer orçamento
                       </button>
                     </div>
                   </div>
@@ -347,76 +378,20 @@ export default function Home() {
             ))}
           </div>
         )
-      ) : /* ---------- ABA: JÁ VENDI ---------- */
-      vendidosLista.length === 0 ? (
-        <div className="card flex flex-col items-center py-8 text-center">
-          <IconeMoeda size={56} className="text-mute" />
-          <p className="display mt-4 text-xl font-bold text-tinta">
-            Ainda não vendeu nada
-          </p>
-          <p className="mt-1 font-bold text-mute">
-            Quando vender um produto, aperte{" "}
-            <span className="text-neon">“Vendi 1!”</span> lá na aba de produtos.
-          </p>
-        </div>
       ) : (
-        <>
-          {/* O cofrinho da empresa */}
-          <div className="card caixa-valor mb-4 text-center">
-            <p className="display text-xs font-bold uppercase tracking-[0.2em] text-mute">
-              cofrinho da {empresa || "empresa"}
-            </p>
-            <Valor
-              valor={Math.abs(jaGanhei)}
-              max="3.5rem"
-              min="1.5rem"
-              className={`mt-1 block font-bold ${
-                jaGanhei < 0 ? "text-perigo" : "brilho text-neon"
-              }`}
-            />
-            <p className="mt-1 font-bold text-mute">
-              ganho de verdade, com {totalVendidos} venda
-              {totalVendidos > 1 ? "s" : ""} 🎉
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {vendidosLista.map(({ produto, resultado }) => (
-              <div key={produto.id} className="card flex items-center gap-3">
-                <span className="flex shrink-0 -space-x-2.5">
-                  {produto.coresIds.slice(0, 3).map((id, idx) => (
-                    <Carretel
-                      key={idx}
-                      cor={acharCor(id, cores).hex}
-                      size={30}
-                    />
-                  ))}
-                </span>
-                <div className="caixa-valor min-w-0 flex-1">
-                  <p className="display truncate text-lg font-bold text-tinta">
-                    {produto.nome}
-                  </p>
-                  <p className="text-sm font-bold text-mute">
-                    {produto.vendidos}× vendido · ganhou{" "}
-                    <Valor
-                      valor={resultado.lucro * produto.vendidos}
-                      max="0.875rem"
-                      className="text-neon"
-                    />
-                  </p>
-                </div>
-                <button
-                  onClick={() => desfazerVenda(produto.id)}
-                  aria-label="Tirar uma venda"
-                  title="Errei, tirar uma venda"
-                  className="btn-escuro shrink-0 rounded-lg px-3 py-2 font-extrabold"
-                >
-                  −1
-                </button>
-              </div>
-            ))}
-          </div>
-        </>
+        /* ---------- ABA: VENDIDOS ---------- */
+        <ListaVendidos
+          vendas={vendas}
+          clientes={clientes}
+          cores={cores}
+          empresa={empresa}
+          onReceber={receber}
+          onNomear={(v) => {
+            setNomeando(v);
+            setNomeNovo(clientes.find((c) => c.id === v.clienteId)?.nome ?? "");
+          }}
+          onVenderDeNovo={(v) => router.push(`/orcamento?de=${v.id}`)}
+        />
       )}
 
       {/* Botão flutuante Novo Produto (com um degradê pro conteúdo não
@@ -452,6 +427,34 @@ export default function Home() {
           texto={aviso}
           onFechar={() => setAviso("")}
         />
+      )}
+
+      {avisoMigracao && (
+        <Dialogo
+          tom="perigo"
+          titulo="Vendas antigas sumidas"
+          texto={avisoMigracao}
+          onFechar={() => setAvisoMigracao("")}
+        />
+      )}
+
+      {nomeando && (
+        <Dialogo
+          titulo="Quem comprou?"
+          confirmar="Salvar"
+          cancelar="Deixa quieto"
+          onConfirmar={salvarNome}
+          onFechar={() => setNomeando(null)}
+        >
+          <input
+            autoFocus
+            value={nomeNovo}
+            onChange={(e) => setNomeNovo(e.target.value)}
+            maxLength={24}
+            placeholder="Ex: Maria"
+            className="w-full rounded-xl border-2 border-borda bg-painel2 p-3 text-center text-lg font-bold text-tinta outline-none focus:border-neon"
+          />
+        </Dialogo>
       )}
     </main>
   );
