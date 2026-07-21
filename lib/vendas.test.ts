@@ -135,6 +135,8 @@ describe("linhas da migração do contador antigo", () => {
     const produtos = [
       produto({ id: "p1", vendidos: 3, precoVenda: 25 }),
       produto({ id: "p2", vendidos: 2, precoVenda: 40, nome: "Vaso" }),
+      // Produto com precoVenda: 0 exercita o ramo do preço sugerido em calcularProduto
+      produto({ id: "p4", vendidos: 1, precoVenda: 0, nome: "Teste Preço Sugerido" }),
       produto({ id: "p3", vendidos: 0 }),
     ];
 
@@ -163,5 +165,14 @@ describe("linhas da migração do contador antigo", () => {
       CORES
     );
     expect(l.preco).toBeGreaterThan(0);
+  });
+
+  it("criadoEm zero não é tratado como missing — pagoEm fica 0", () => {
+    const [l] = linhasDaMigracao(
+      [produto({ vendidos: 1, criadoEm: 0 })],
+      CONFIG_PADRAO,
+      CORES
+    );
+    expect(l.pagoEm).toBe(0);
   });
 });

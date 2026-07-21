@@ -64,7 +64,7 @@ export function linhasDaMigracao(
         custo: r.custoTotal,
         // A data da venda real nunca foi registrada; a da peça é o mais
         // perto da verdade que dá pra chegar.
-        pagoEm: p.criadoEm || Date.now(),
+        pagoEm: p.criadoEm ?? Date.now(),
       });
     }
   }
