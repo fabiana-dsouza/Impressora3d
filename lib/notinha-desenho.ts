@@ -188,11 +188,7 @@ function percorrer(
       ctx.fillStyle = paleta.tinta;
       ctx.font = `800 12px ${F_CORPO}`;
       ctx.letterSpacing = "2px";
-      ctx.fillText(
-        `PARA ${dados.cliente.toUpperCase()}`,
-        meio,
-        y + 12
-      );
+      ctx.fillText(dados.cliente, meio, y + 12);
       ctx.letterSpacing = "0px";
     }
     y += 20;
@@ -279,14 +275,22 @@ export function desenharOrcamento(
 
   // Duas barreiras contra nome comprido: o maxLength do campo na tela, e
   // este corte aqui, que é o que impede o texto de furar o papel.
-  ctx.font = `800 12px ${F_CORPO}`;
-  const [clienteCabendo] = quebrarEmLinhas(
-    dados.cliente,
-    LARGURA - MARGEM * 2,
-    (t) => ctx.measureText(t).width,
-    1
-  );
-  const paraDesenhar = { ...dados, cliente: dados.cliente ? clienteCabendo : "" };
+  // IMPORTANTE: medir a string que será desenhada (com PARA, maiúscula e
+  // letterSpacing) para não subestimar a largura e deixar transbordar.
+  let clienteFinal = "";
+  if (dados.cliente) {
+    ctx.font = `800 12px ${F_CORPO}`;
+    ctx.letterSpacing = "2px";
+    const stringCompleta = `PARA ${dados.cliente.toUpperCase()}`;
+    const [clienteCabendo] = quebrarEmLinhas(
+      stringCompleta,
+      LARGURA - MARGEM * 2,
+      (t) => ctx.measureText(t).width,
+      1
+    );
+    clienteFinal = clienteCabendo;
+  }
+  const paraDesenhar = { ...dados, cliente: clienteFinal };
 
   // Medir com a fonte e o espaçamento certos, senão a quebra de linha erra.
   ctx.letterSpacing = "0px";
