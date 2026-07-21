@@ -674,12 +674,38 @@ export async function migrarVendasAntigas(
   if (jaFoi.error) throw jaFoi.error;
   if (jaFoi.data) return false;
 
+  // `migracoes` só tem policy de select/insert — não dá update nem delete.
+  // Então a marca é IRREVERSÍVEL de dentro do app. Se `produtos` chegar vazio
+  // (ainda não carregou, por exemplo), NÃO dá pra gravar "já migrei" tendo
+  // migrado nada: os contadores antigos ficariam presos pra sempre, só
+  // destravável com SQL na mão direto no banco vivo.
+  if (produtos.length === 0) return false;
+
   const linhas = linhasDaMigracao(produtos, config, cores);
 
+  // Os ids das linhas migradas são DETERMINÍSTICOS (não usam novoId()) de
+  // propósito: se fosse um id aleatório, repetir a migração — internet caiu
+  // logo depois do commit, aba fechou no meio do await, token expirou antes
+  // da marca ser gravada, ou duas abas rodando ao mesmo tempo — geraria
+  // linhas NOVAS em vez de bater com as que já existem, e o cofrinho da
+  // criança dobraria de valor sozinho. Contando "a N-ésima venda deste
+  // produto" o id fica igual em qualquer tentativa, e o upsert abaixo faz a
+  // repetição não gravar nada de novo.
+  const contadores = new Map<string, number>();
+  const idDaLinha = (produtoId: string | null): string => {
+    // Linha migrada sempre vem de um produto (ver linhasDaMigracao), então
+    // produtoId não deveria ser null aqui — mas se vier, usa uma chave fixa
+    // em vez de deixar `undefined-${n}` variar por engano.
+    const chave = produtoId ?? "sem-produto";
+    const n = contadores.get(chave) ?? 0;
+    contadores.set(chave, n + 1);
+    return `mig-${chave}-${n}`;
+  };
+
   if (linhas.length > 0) {
-    const { error } = await sb.from("vendas").insert(
+    const { error } = await sb.from("vendas").upsert(
       linhas.map((l) => ({
-        id: novoId(),
+        id: idDaLinha(l.produtoId),
         user_id: uid,
         produto_id: l.produtoId,
         produto_nome: l.produtoNome,
@@ -688,7 +714,8 @@ export async function migrarVendasAntigas(
         preco: l.preco,
         custo: l.custo,
         pago_em: l.pagoEm === null ? null : new Date(l.pagoEm).toISOString(),
-      }))
+      })),
+      { onConflict: "user_id,id", ignoreDuplicates: true }
     );
     if (error) throw error;
   }
