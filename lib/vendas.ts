@@ -31,6 +31,27 @@ export function totalQueTeDevem(vendas: Venda[]): number {
 }
 
 /**
+ * O valor que já vem preenchido na nota daquela peça: o preço da ÚLTIMA venda
+ * dessa mesma peça (a mais recente por `criadoEm`). Se ela nunca foi vendida,
+ * vale o preço sugerido — assim a peça "lembra" quanto costuma vender, mas só
+ * de vendas de verdade (um "apenas orçamento" não registra venda, não muda a base).
+ */
+export function precoBaseDaVenda(
+  vendas: Venda[],
+  produtoId: string,
+  precoSugerido: number
+): number {
+  const ultima = vendas
+    .filter((v) => v.produtoId === produtoId)
+    .reduce<Venda | null>(
+      (maisRecente, v) =>
+        !maisRecente || v.criadoEm > maisRecente.criadoEm ? v : maisRecente,
+      null
+    );
+  return ultima ? ultima.preco : precoSugerido;
+}
+
+/**
  * Converte o contador antigo (`produtos.vendidos`) em linhas de venda.
  *
  * Cada unidade vendida vira uma linha marcada como PAGA e SEM CLIENTE — quem

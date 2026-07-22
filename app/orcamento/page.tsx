@@ -2,17 +2,13 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import * as db from "@/lib/db";
-import { nomeLimpo } from "@/lib/clientes";
 import { CORES_PADRAO } from "@/lib/defaults";
-import type { Cliente, Cor, Produto } from "@/lib/types";
+import type { Cor, Produto } from "@/lib/types";
 import Carretel from "@/components/Carretel";
 import { Logo } from "@/components/Marca";
 import { IconeCasa } from "@/components/Icones";
-
-/** Quantas pastilhas de atalho cabem sem virar parede de botão. */
-const QUANTAS_PASTILHAS = 6;
 
 export default function OrcamentoPage() {
   return (
@@ -39,9 +35,10 @@ function Orcamento() {
 
   const [produto, setProduto] = useState<Produto | null>(null);
   const [cores, setCores] = useState<Cor[]>(CORES_PADRAO);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [nome, setNome] = useState("");
   const [coresIds, setCoresIds] = useState<string[]>([]);
+  // Cliente herdado de "vender de novo": aqui não tem campo de cliente (ele vive
+  // na nota agora), só guardamos o nome pra a nota já vir preenchida.
+  const [clienteDe, setClienteDe] = useState("");
   const [carregou, setCarregou] = useState(false);
 
   useEffect(() => {
@@ -64,8 +61,9 @@ function Orcamento() {
         if (anterior?.clienteId) {
           const lista = await db.lerClientes();
           if (!vivo) return;
-          setClientes(lista);
-          setNome(lista.find((c) => c.id === anterior.clienteId)?.nome ?? "");
+          setClienteDe(
+            lista.find((c) => c.id === anterior.clienteId)?.nome ?? ""
+          );
         }
       } catch (e) {
         console.error(e);
@@ -74,22 +72,12 @@ function Orcamento() {
       }
     })();
 
-    // A lista de atalhos não trava a tela: sem ela dá pra digitar do mesmo jeito.
-    db.lerClientes()
-      .then((l) => vivo && setClientes((atual) => (atual.length ? atual : l)))
-      .catch(() => {});
-
     return () => {
       vivo = false;
     };
   }, [produtoId, deVenda]);
 
-  const recentes = useMemo(
-    () => clientes.slice(0, QUANTAS_PASTILHAS),
-    [clientes]
-  );
-
-  const podeSeguir = nomeLimpo(nome).length > 0 && coresIds.length > 0;
+  const podeSeguir = coresIds.length > 0;
 
   function alternarCor(id: string) {
     setCoresIds((atual) =>
@@ -101,9 +89,10 @@ function Orcamento() {
     if (!produto || !podeSeguir) return;
     const busca = new URLSearchParams({
       id: produto.id,
-      cliente: nomeLimpo(nome),
       cores: coresIds.join(","),
     });
+    // Vindo de "vender de novo", a nota já abre com o cliente de antes.
+    if (clienteDe) busca.set("cliente", clienteDe);
     router.push(`/resultado?${busca.toString()}`);
   }
 
@@ -137,38 +126,17 @@ function Orcamento() {
         </Link>
       </div>
 
-      <h1 className="display mb-1 text-2xl font-bold text-tinta">
+      {/* Deixa explícito que este nome é o do PRODUTO — quem é o cliente a gente
+          pergunta só depois, na nota. */}
+      <p className="mb-1 text-sm font-extrabold uppercase tracking-wide text-mute">
+        Orçamento de
+      </p>
+      <h1 className="display mb-6 text-2xl font-bold text-tinta">
         {produto.nome}
       </h1>
-      <p className="mb-6 font-bold text-mute">Vamos fazer a notinha!</p>
-
-      {/* ---------- Pra quem ---------- */}
-      <h2 className="display mb-3 text-xl font-bold text-tinta">Pra quem é?</h2>
-      <input
-        autoFocus
-        value={nome}
-        onChange={(e) => setNome(e.target.value)}
-        maxLength={24}
-        placeholder="Ex: Maria"
-        className="w-full rounded-2xl border-2 border-borda bg-painel2 p-4 text-xl font-bold text-tinta outline-none focus:border-neon"
-      />
-
-      {recentes.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {recentes.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setNome(c.nome)}
-              className="btn-escuro min-h-[48px] rounded-full px-4 text-base font-bold"
-            >
-              {c.nome}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* ---------- Qual cor ---------- */}
-      <h2 className="display mb-3 mt-8 text-xl font-bold text-tinta">
+      <h2 className="display mb-3 text-xl font-bold text-tinta">
         Qual cor dessa vez?
       </h2>
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
@@ -212,9 +180,7 @@ function Orcamento() {
 
       {!podeSeguir && (
         <p className="mt-3 text-center font-bold text-mute">
-          {nomeLimpo(nome).length === 0
-            ? "Escreve pra quem é essa peça."
-            : "Escolhe pelo menos uma cor."}
+          Escolhe pelo menos uma cor.
         </p>
       )}
     </main>

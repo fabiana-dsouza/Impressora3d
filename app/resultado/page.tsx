@@ -2,25 +2,33 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   lerConfig,
   lerCores,
   lerProduto,
   lerPerfil,
+  lerVendas,
+  lerClientes,
   acharOuCriarCliente,
   criarVenda,
 } from "@/lib/db";
 import { calcularProduto } from "@/lib/calc-produto";
+import { precoBaseDaVenda } from "@/lib/vendas";
+import { nomeLimpo } from "@/lib/clientes";
 import { CORES_PADRAO } from "@/lib/defaults";
-import type { Config, Cor, Produto } from "@/lib/types";
+import type { Cliente, Config, Cor, Produto, Venda } from "@/lib/types";
 import Confete from "@/components/Confete";
 import { Logo } from "@/components/Marca";
-import { IconeAlerta, IconeCasa } from "@/components/Icones";
+import { IconeAlerta, IconeCasa, IconeMoeda } from "@/components/Icones";
 import NotinhaInterna from "@/components/NotinhaInterna";
 import NotinhaCliente from "@/components/NotinhaCliente";
+import PrecoVendido from "@/components/PrecoVendido";
 import Dialogo from "@/components/Dialogo";
 import { montarOrcamento } from "@/lib/orcamento";
+
+/** Quantas pastilhas de cliente recente cabem sem virar parede de botão. */
+const QUANTAS_PASTILHAS = 6;
 
 export default function ResultadoPage() {
   return (
@@ -49,28 +57,44 @@ function Resultado() {
   const clienteParam = params.get("cliente") ?? "";
   const coresParam = params.get("cores");
 
+  // A nota tem dois modos: fazer um ORÇAMENTO (veio da tela de orçamento, tem
+  // ?cores) mostra cliente + valor final + vender; só VER A CONTA (link da
+  // fábrica ou peça recém-criada) mostra só as notinhas.
+  const ehOrcamento = coresParam !== null;
+
   const [produto, setProduto] = useState<Produto | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [cores, setCores] = useState<Cor[]>(CORES_PADRAO);
+  const [vendas, setVendas] = useState<Venda[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
   const [empresa, setEmpresa] = useState("");
   const [carregou, setCarregou] = useState(false);
   const [confete, setConfete] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [avisoVenda, setAvisoVenda] = useState("");
+  const [perguntandoPagou, setPerguntandoPagou] = useState(false);
+
+  // O que ela decide na nota.
+  const [cliente, setCliente] = useState(clienteParam);
+  const [valorFinal, setValorFinal] = useState("");
 
   useEffect(() => {
     let vivo = true;
     (async () => {
       try {
-        const [p, cfg, cs] = await Promise.all([
+        const [p, cfg, cs, vs, cls] = await Promise.all([
           id ? lerProduto(id) : Promise.resolve(null),
           lerConfig(),
           lerCores(),
+          ehOrcamento ? lerVendas() : Promise.resolve<Venda[]>([]),
+          ehOrcamento ? lerClientes() : Promise.resolve<Cliente[]>([]),
         ]);
         if (!vivo) return;
         setProduto(p);
         setConfig(cfg);
         setCores(cs);
+        setVendas(vs);
+        setClientes(cls);
       } catch (e) {
         console.error(e);
       } finally {
@@ -83,6 +107,7 @@ function Resultado() {
     return () => {
       vivo = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -107,31 +132,69 @@ function Resultado() {
     return calcularProduto(alvo, config, cores);
   }, [alvo, config, cores]);
 
+  // A base do valor final: o último preço vendido dessa peça, ou o sugerido se
+  // ela nunca foi vendida. Preenche uma vez só, quando os dados chegam — depois
+  // quem manda é o que ela digita.
+  const baseDefinida = useRef(false);
+  useEffect(() => {
+    if (baseDefinida.current || !carregou || !ehOrcamento || !resultado || !id) {
+      return;
+    }
+    baseDefinida.current = true;
+    setValorFinal(String(precoBaseDaVenda(vendas, id, resultado.precoVenda)));
+  }, [carregou, ehOrcamento, resultado, vendas, id]);
+
+  const precoNota = Number(valorFinal) || 0;
+
+  // No orçamento, as notinhas mostram o valor final que ela digitou (com o lucro
+  // recalculado em cima dele). Só vendo a conta, mostram a base da peça.
+  const resultadoNota = useMemo(() => {
+    if (!resultado) return null;
+    if (!ehOrcamento) return resultado;
+    return {
+      ...resultado,
+      precoVenda: precoNota,
+      lucro: precoNota - resultado.custoTotal,
+    };
+  }, [resultado, ehOrcamento, precoNota]);
+
   // Memoizado porque NotinhaCliente redesenha o canvas toda vez que `dados`
   // muda de identidade — sem isto, um objeto novo a cada render viraria um
   // loop de repintura.
   const dadosOrcamento = useMemo(() => {
-    if (!alvo || !resultado) return null;
+    if (!alvo || !resultadoNota) return null;
     return {
-      ...montarOrcamento(alvo, resultado, cores, empresa, new Date()),
-      cliente: clienteParam,
+      ...montarOrcamento(alvo, resultadoNota, cores, empresa, new Date()),
+      cliente: ehOrcamento ? nomeLimpo(cliente) : "",
     };
-  }, [alvo, resultado, cores, empresa, clienteParam]);
+  }, [alvo, resultadoNota, cores, empresa, cliente, ehOrcamento]);
 
-  async function vendi() {
+  const recentes = useMemo(
+    () => clientes.slice(0, QUANTAS_PASTILHAS),
+    [clientes]
+  );
+
+  const podeVender = nomeLimpo(cliente).length > 0 && precoNota > 0;
+
+  async function registrarVenda(jaPagou: boolean) {
     if (!produto || !resultado || salvando) return;
     setSalvando(true);
     try {
-      const clienteId = await acharOuCriarCliente(clienteParam);
+      const clienteId = await acharOuCriarCliente(nomeLimpo(cliente));
       await criarVenda({
         produtoId: produto.id,
         produtoNome: produto.nome,
         clienteId,
-        coresIds: coresParam ? coresParam.split(",").filter(Boolean) : produto.coresIds,
-        preco: resultado.precoVenda,
+        coresIds: coresParam
+          ? coresParam.split(",").filter(Boolean)
+          : produto.coresIds,
+        // O valor final que ela digitou é o que fica congelado na venda — e é
+        // ele que vira a base do próximo orçamento desta peça.
+        preco: precoNota,
         custo: resultado.custoTotal,
-        // Vendeu agora, mas ainda não recebeu — quem marca é ela, depois.
-        pagoEm: null,
+        // "Sim, já recebi" cai direto no cofrinho; "Ainda não" fica em
+        // "falta pagar" até ela marcar "Recebi!" lá na aba Vendidos.
+        pagoEm: jaPagou ? Date.now() : null,
       });
       router.push("/fabrica?aba=vendidos");
     } catch (e) {
@@ -160,7 +223,9 @@ function Resultado() {
     );
   }
 
-  if (!resultado || !produto || !config || !alvo) return <Carregando />;
+  if (!resultado || !resultadoNota || !produto || !config || !alvo) {
+    return <Carregando />;
+  }
 
   return (
     // max-w-4xl deixa 432px por coluna. Já tentei apertar pra 3xl (368px) pra
@@ -181,6 +246,46 @@ function Resultado() {
         </Link>
       </div>
 
+      {/* No orçamento, primeiro ela diz pra quem é e por quanto — os dois
+          mudam a notinha ao vivo. */}
+      {ehOrcamento && (
+        <div className="mx-auto mb-8 max-w-md space-y-6">
+          <div>
+            <h2 className="display mb-3 text-xl font-bold text-tinta">
+              Pra quem é?
+            </h2>
+            <input
+              autoFocus={!clienteParam}
+              value={cliente}
+              onChange={(e) => setCliente(e.target.value)}
+              maxLength={24}
+              placeholder="Ex: Maria"
+              className="w-full rounded-2xl border-2 border-borda bg-painel2 p-4 text-xl font-bold text-tinta outline-none focus:border-neon"
+            />
+            {recentes.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {recentes.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCliente(c.nome)}
+                    className="btn-escuro min-h-[48px] rounded-full px-4 text-base font-bold"
+                  >
+                    {c.nome}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <PrecoVendido
+            custoTotal={resultado.custoTotal}
+            precoSugerido={resultado.precoVenda}
+            valor={valorFinal}
+            onChange={setValorFinal}
+          />
+        </div>
+      )}
+
       {/* As duas notinhas se parecem de longe, e mandar a errada pro cliente
           seria o pior erro possível — por isso cada uma tem nome em cima. */}
       <div className="grid gap-12 lg:grid-cols-2 lg:items-start lg:gap-8">
@@ -192,7 +297,7 @@ function Resultado() {
             produto={alvo}
             config={config}
             cores={cores}
-            resultado={resultado}
+            resultado={resultadoNota}
             empresa={empresa}
           />
         </section>
@@ -205,31 +310,50 @@ function Resultado() {
         </section>
       </div>
 
-      {clienteParam && (
+      {ehOrcamento && (
         <div className="mt-10">
           <p className="mb-3 text-center text-base font-extrabold text-mute">
-            E aí, {clienteParam} vai levar?
+            {nomeLimpo(cliente)
+              ? `E aí, ${nomeLimpo(cliente)} vai levar?`
+              : "Fechou a venda?"}
           </p>
           <div className="flex flex-col gap-3 sm:flex-row-reverse">
             <button
-              onClick={vendi}
-              disabled={salvando}
+              onClick={() => setPerguntandoPagou(true)}
+              disabled={salvando || !podeVender}
               className="btn-grande btn-neon flex-1 disabled:opacity-60"
             >
-              Vendi!
+              Vendido
             </button>
             <button
               onClick={() => router.push("/fabrica")}
               disabled={salvando}
               className="btn-grande btn-escuro flex-1 disabled:opacity-60"
             >
-              Não vendi
+              Apenas orçamento
             </button>
           </div>
           <p className="mt-3 text-center font-bold text-mute">
-            Se vendeu, dá pra marcar quando o dinheiro chegar.
+            {!podeVender
+              ? nomeLimpo(cliente).length === 0
+                ? "Escreve pra quem é pra marcar como vendido."
+                : "Põe o valor final pra marcar como vendido."
+              : "Se vendeu, dá pra marcar quando o dinheiro chegar."}
           </p>
         </div>
+      )}
+
+      {perguntandoPagou && (
+        <Dialogo
+          icone={<IconeMoeda size={26} />}
+          titulo="Já te pagou?"
+          texto={`${nomeLimpo(cliente)} já colocou o dinheiro na sua mão?`}
+          confirmar="Sim, já recebi! 🎉"
+          secundario="Ainda não"
+          onConfirmar={() => registrarVenda(true)}
+          onSecundario={() => registrarVenda(false)}
+          onFechar={() => setPerguntandoPagou(false)}
+        />
       )}
 
       {avisoVenda && (

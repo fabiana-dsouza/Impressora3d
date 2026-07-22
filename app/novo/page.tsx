@@ -8,7 +8,6 @@ import { calcular, taxasDaConfig, horasDecimais, travarMargem } from "@/lib/calc
 import { precoMedioPorGrama } from "@/lib/calc-produto";
 import { novoId } from "@/lib/format";
 import type { Config, Cor, Produto, Unidade } from "@/lib/types";
-import PrecoVendido from "@/components/PrecoVendido";
 import Valor from "@/components/Valor";
 import Carretel from "@/components/Carretel";
 import Dialogo from "@/components/Dialogo";
@@ -37,7 +36,6 @@ export default function NovoProduto() {
   const [unidade, setUnidade] = useState<Unidade>("g");
   const [horas, setHoras] = useState(0);
   const [minutos, setMinutos] = useState(0);
-  const [precoVendido, setPrecoVendido] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [trancada, setTrancada] = useState(false);
 
@@ -130,12 +128,7 @@ export default function NovoProduto() {
   function avancar() {
     if (!validarPasso()) return;
     if (passo >= TOTAL_PASSOS - 1) return;
-    const proximo = passo + 1;
-    // Ao chegar no final, já deixa o preço sugerido preenchido.
-    if (proximo === TOTAL_PASSOS - 1 && resultado) {
-      setPrecoVendido(String(resultado.precoVenda));
-    }
-    setPasso(proximo);
+    setPasso(passo + 1);
   }
   function voltar() {
     setErro("");
@@ -145,11 +138,6 @@ export default function NovoProduto() {
 
   async function salvar() {
     if (!config || salvando) return;
-    const preco = Number(precoVendido) || 0;
-    if (preco <= 0) {
-      setErro("Põe por quanto você vendeu!");
-      return;
-    }
     const produto: Produto = {
       id: novoId(),
       nome: nome.trim(),
@@ -159,7 +147,9 @@ export default function NovoProduto() {
       horas,
       minutos,
       margem: config.margemPadrao,
-      precoVenda: preco,
+      // Sem preço fixo: a base do orçamento vira o preço indicado, e o valor
+      // final de cada venda é definido na nota.
+      precoVenda: 0,
       criadoEm: Date.now(),
       vendidos: 0,
     };
@@ -308,17 +298,18 @@ export default function NovoProduto() {
               <Stepper
                 titulo="minutos"
                 valor={minutos}
-                onMenos={() => setMinutos((m) => Math.max(0, m - 15))}
-                onMais={() => setMinutos((m) => (m >= 45 ? 0 : m + 15))}
+                onMenos={() => setMinutos((m) => Math.max(0, m - 1))}
+                onMais={() => setMinutos((m) => (m >= 59 ? 0 : m + 1))}
               />
             </div>
             <p className="mt-4 text-center font-bold text-mute">
-              (Está escrito no seu slicer!)
+              (Está escrito no seu site!)
             </p>
           </Passo>
         )}
 
-        {/* PASSO 4 — Custo, preço indicado e o preço que realmente vendeu */}
+        {/* PASSO 4 — Resumo: quanto custou e o preço indicado. O valor final de
+            cada venda é decidido depois, na nota do orçamento. */}
         {passo === 3 && resultado && config && (
           <Passo pergunta="Quanto ficou?" icone={<IconeMoeda size={30} />}>
             {/* 1. Quanto custou pra fazer */}
@@ -353,19 +344,6 @@ export default function NovoProduto() {
                 o custo + {Math.round(travarMargem(config.margemPadrao) * 100)}%
                 de lucro pra você
               </p>
-            </div>
-
-            {/* 3. E, se quiser, o preço que ela vendeu de verdade */}
-            <div className="mt-3">
-              <PrecoVendido
-                custoTotal={resultado.custoTotal}
-                precoSugerido={resultado.precoVenda}
-                valor={precoVendido}
-                onChange={(v) => {
-                  setPrecoVendido(v);
-                  setErro("");
-                }}
-              />
             </div>
           </Passo>
         )}

@@ -5,6 +5,7 @@ import {
   totalNoCaixa,
   totalQueTeDevem,
   linhasDaMigracao,
+  precoBaseDaVenda,
 } from "./vendas";
 import { calcularProduto } from "./calc-produto";
 import { CONFIG_PADRAO } from "./defaults";
@@ -86,6 +87,36 @@ describe("o que ainda te devem", () => {
 
   it("tudo pago, ninguém te deve nada", () => {
     expect(totalQueTeDevem([venda({ pagoEm: 1 })])).toBe(0);
+  });
+});
+
+describe("preço base do orçamento", () => {
+  // A base que vem preenchida na nota: o último preço vendido daquela peça,
+  // ou o sugerido se ela nunca foi vendida.
+  it("sem venda dessa peça, usa o preço sugerido", () => {
+    expect(precoBaseDaVenda([], "p1", 18)).toBe(18);
+  });
+
+  it("com uma venda dessa peça, usa o preço dela", () => {
+    const vs = [venda({ produtoId: "p1", preco: 20 })];
+    expect(precoBaseDaVenda(vs, "p1", 18)).toBe(20);
+  });
+
+  it("com várias vendas, usa a MAIS RECENTE", () => {
+    const vs = [
+      venda({ id: "a", produtoId: "p1", preco: 20, criadoEm: 100 }),
+      venda({ id: "b", produtoId: "p1", preco: 25, criadoEm: 300 }),
+      venda({ id: "c", produtoId: "p1", preco: 22, criadoEm: 200 }),
+    ];
+    expect(precoBaseDaVenda(vs, "p1", 18)).toBe(25);
+  });
+
+  it("ignora vendas de outra peça", () => {
+    const vs = [
+      venda({ id: "a", produtoId: "p2", preco: 99, criadoEm: 500 }),
+      venda({ id: "b", produtoId: "p1", preco: 20, criadoEm: 100 }),
+    ];
+    expect(precoBaseDaVenda(vs, "p1", 18)).toBe(20);
   });
 });
 

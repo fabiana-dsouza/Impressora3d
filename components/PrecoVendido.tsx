@@ -3,8 +3,9 @@
 import Valor from "./Valor";
 
 /**
- * "Por quanto você vendeu?" — o preço indicado vem preenchido, mas quem manda
- * é a criança: às vezes o preço final foi outro, e a notinha mostra a verdade.
+ * "Faça um teste de negociação" — o preço indicado vem preenchido, mas quem
+ * manda é a criança: ela testa um preço e vê na hora se ganha ou perde. É esse
+ * preço que vai na notinha.
  */
 export default function PrecoVendido({
   custoTotal,
@@ -30,10 +31,10 @@ export default function PrecoVendido({
   return (
     <div className="card">
       <p className="display text-center text-lg font-bold text-tinta">
-        Por quanto você vendeu?
+        Faça um teste de negociação 🤝
       </p>
       <p className="mb-4 text-center text-sm font-bold text-mute">
-        Se o preço final foi outro, muda aqui — é ele que vai na notinha.
+        Escolhe um preço e vê se você ganha ou perde — é ele que vai na notinha.
       </p>
 
       <div className="flex items-center justify-center gap-2">

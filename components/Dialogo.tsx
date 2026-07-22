@@ -17,7 +17,9 @@ export default function Dialogo({
   tom = "neutro",
   confirmar = "Pode apagar",
   cancelar = "Deixa quieto",
+  secundario,
   onConfirmar,
+  onSecundario,
   onFechar,
   children,
 }: {
@@ -27,7 +29,10 @@ export default function Dialogo({
   tom?: "neutro" | "perigo";
   confirmar?: string;
   cancelar?: string;
+  /** Botão do meio que TAMBÉM decide algo (não é só fechar). Ex: "Ainda não". */
+  secundario?: string;
   onConfirmar?: () => void;
+  onSecundario?: () => void;
   onFechar: () => void;
   /** Conteúdo livre entre o texto e os botões — ex: um campo pra digitar. */
   children?: React.ReactNode;
@@ -86,10 +91,24 @@ export default function Dialogo({
           >
             {onConfirmar ? confirmar : "Entendi"}
           </button>
-          {onConfirmar && (
-            <button onClick={onFechar} className="btn-grande btn-escuro flex-1">
-              {cancelar}
+          {onSecundario ? (
+            // Segundo botão que também decide algo (ex: "Ainda não" grava a
+            // venda como não paga). Aqui desistir de vez é só pelo fundo ou Esc.
+            <button
+              onClick={() => {
+                onSecundario();
+                onFechar();
+              }}
+              className="btn-grande btn-escuro flex-1"
+            >
+              {secundario}
             </button>
+          ) : (
+            onConfirmar && (
+              <button onClick={onFechar} className="btn-grande btn-escuro flex-1">
+                {cancelar}
+              </button>
+            )
           )}
         </div>
       </div>

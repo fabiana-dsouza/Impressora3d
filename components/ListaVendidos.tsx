@@ -98,22 +98,28 @@ export default function ListaVendidos({
                 </span>
 
                 <div className="min-w-0 flex-1">
-                  {/* Sem nome, o próprio aviso É o botão de preencher. */}
+                  {/* O PRODUTO manda no card — é o título maior. */}
+                  <p className="display truncate text-xl font-bold text-tinta">
+                    {v.produtoNome}
+                  </p>
+                  {/* Quem comprou + preço logo abaixo: menor que o produto, mas
+                      ainda bem legível. Sem nome, o próprio aviso É o botão de
+                      preencher (com alvo de toque grande). */}
                   {nome ? (
-                    <p className="display truncate text-lg font-bold text-tinta">
-                      {nome}
+                    <p className="truncate text-base font-bold text-mute">
+                      <span className="text-tinta">{nome}</span> · {brl(v.preco)}
                     </p>
                   ) : (
-                    <button
-                      onClick={() => onNomear(v)}
-                      className="inline-flex items-center px-2 rounded min-h-[48px] text-lg font-bold text-ciano underline"
-                    >
-                      ** falta o nome **
-                    </button>
+                    <p className="text-base font-bold text-mute">
+                      <button
+                        onClick={() => onNomear(v)}
+                        className="inline-flex min-h-[48px] items-center whitespace-nowrap rounded align-middle text-ciano underline"
+                      >
+                        ** falta o nome **
+                      </button>
+                      <span className="whitespace-nowrap">{" · "}{brl(v.preco)}</span>
+                    </p>
                   )}
-                  <p className="truncate font-bold text-mute">
-                    {v.produtoNome} · {brl(v.preco)}
-                  </p>
                 </div>
 
                 <span
