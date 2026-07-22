@@ -79,8 +79,12 @@ export default function Home() {
   const [avisoMigracao, setAvisoMigracao] = useState("");
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("aba") === "vendidos") {
-      setAba("vendidos");
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("aba") === "vendidos") setAba("vendidos");
+    // Veio de "Vendido → já recebi": comemora com o mesmo confete do "Recebi!".
+    if (q.get("festa") === "1") {
+      setFesta(true);
+      setTimeout(() => setFesta(false), 1600);
     }
   }, []);
 

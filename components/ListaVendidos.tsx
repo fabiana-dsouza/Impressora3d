@@ -122,14 +122,34 @@ export default function ListaVendidos({
                   )}
                 </div>
 
+                {/* Chip estreito (rótulo em cima, valor embaixo) pra sobrar
+                    largura pro nome do produto no título. */}
                 <span
-                  className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-bold uppercase ${
+                  className={`shrink-0 rounded-lg border px-2 py-1 text-center ${
                     pago
-                      ? "border-neon/30 bg-neon/10 text-neon"
-                      : "border-ciano/30 bg-ciano/10 text-ciano"
+                      ? "border-neon/30 bg-neon/10"
+                      : "border-ciano/30 bg-ciano/10"
                   }`}
                 >
-                  {pago ? `ganhou ${brl(lucroDaVenda(v))}` : "falta pagar"}
+                  {pago ? (
+                    <>
+                      <span className="block text-[10px] font-bold uppercase leading-none text-neon/70">
+                        ganhou
+                      </span>
+                      <span className="mt-0.5 block whitespace-nowrap text-xs font-bold text-neon">
+                        {brl(lucroDaVenda(v))}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="block text-[10px] font-bold uppercase leading-none text-ciano/70">
+                        falta
+                      </span>
+                      <span className="mt-0.5 block text-xs font-bold uppercase text-ciano">
+                        pagar
+                      </span>
+                    </>
+                  )}
                 </span>
               </div>
 

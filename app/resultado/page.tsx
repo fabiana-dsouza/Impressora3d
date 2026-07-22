@@ -196,7 +196,10 @@ function Resultado() {
         // "falta pagar" até ela marcar "Recebi!" lá na aba Vendidos.
         pagoEm: jaPagou ? Date.now() : null,
       });
-      router.push("/fabrica?aba=vendidos");
+      // Recebeu na hora? A fábrica solta o confete na aba Vendidos.
+      router.push(
+        jaPagou ? "/fabrica?aba=vendidos&festa=1" : "/fabrica?aba=vendidos"
+      );
     } catch (e) {
       console.error(e);
       setAvisoVenda("Não consegui anotar a venda. Confere a internet!");
