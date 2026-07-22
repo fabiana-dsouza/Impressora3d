@@ -6,6 +6,8 @@ import {
   totalQueTeDevem,
   linhasDaMigracao,
   precoBaseDaVenda,
+  vendasDaPeca,
+  rotuloVendidos,
 } from "./vendas";
 import { calcularProduto } from "./calc-produto";
 import { CONFIG_PADRAO } from "./defaults";
@@ -87,6 +89,39 @@ describe("o que ainda te devem", () => {
 
   it("tudo pago, ninguém te deve nada", () => {
     expect(totalQueTeDevem([venda({ pagoEm: 1 })])).toBe(0);
+  });
+});
+
+describe("vendas de uma peça", () => {
+  it("pega só as vendas daquela peça", () => {
+    const vs = [
+      venda({ id: "a", produtoId: "p1" }),
+      venda({ id: "b", produtoId: "p2" }),
+      venda({ id: "c", produtoId: "p1" }),
+    ];
+    expect(vendasDaPeca(vs, "p1").map((v) => v.id)).toEqual(["a", "c"]);
+  });
+
+  it("ignora venda de peça apagada (produtoId nulo)", () => {
+    const vs = [
+      venda({ id: "a", produtoId: null }),
+      venda({ id: "b", produtoId: "p1" }),
+    ];
+    expect(vendasDaPeca(vs, "p1").map((v) => v.id)).toEqual(["b"]);
+  });
+
+  it("peça sem nenhuma venda dá lista vazia", () => {
+    expect(vendasDaPeca([venda({ produtoId: "p2" })], "p1")).toEqual([]);
+  });
+});
+
+describe("rótulo de vendidos", () => {
+  it("uma venda é singular", () => {
+    expect(rotuloVendidos(1)).toBe("1 vendido");
+  });
+
+  it("duas ou mais é plural", () => {
+    expect(rotuloVendidos(2)).toBe("2 vendidos");
   });
 });
 

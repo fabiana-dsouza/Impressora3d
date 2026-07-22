@@ -51,6 +51,16 @@ export function precoBaseDaVenda(
   return ultima ? ultima.preco : precoSugerido;
 }
 
+/** Só as vendas daquela peça (ignora as de peça apagada, com produtoId nulo). */
+export function vendasDaPeca(vendas: Venda[], produtoId: string): Venda[] {
+  return vendas.filter((v) => v.produtoId === produtoId);
+}
+
+/** "1 vendido", "2 vendidos" — o rótulo do contador no card. */
+export function rotuloVendidos(n: number): string {
+  return `${n} vendido${n === 1 ? "" : "s"}`;
+}
+
 /**
  * Converte o contador antigo (`produtos.vendidos`) em linhas de venda.
  *
