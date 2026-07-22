@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as db from "@/lib/db";
 import { renomearCliente } from "@/lib/db";
 import { calcularProduto, acharCor } from "@/lib/calc-produto";
+import { recebido, vendasDaPeca, rotuloVendidos } from "@/lib/vendas";
 import type { Cliente, Config, Cor, Produto, Venda } from "@/lib/types";
 import { CORES_PADRAO, EMPRESA_PADRAO } from "@/lib/defaults";
 import Confete from "@/components/Confete";
@@ -13,6 +14,7 @@ import Carretel from "@/components/Carretel";
 import Valor from "@/components/Valor";
 import Dialogo from "@/components/Dialogo";
 import ListaVendidos from "@/components/ListaVendidos";
+import EspecificacoesProduto from "@/components/EspecificacoesProduto";
 import { Logo, ImpressoraIlustracao } from "@/components/Marca";
 import {
   IconeAlerta,
@@ -20,9 +22,10 @@ import {
   IconeLixeira,
   IconeLupa,
   IconeMais,
+  IconeMoeda,
 } from "@/components/Icones";
 
-type Aba = "catalogo" | "vendidos";
+type Aba = "catalogo" | "vendidos" | "falta";
 
 /** Caixinha rotulada do card do produto — é ela que serve de régua pro valor. */
 function Etiqueta({
@@ -68,11 +71,16 @@ export default function Home() {
   const [festa, setFesta] = useState(false);
   const [aviso, setAviso] = useState("");
   const [apagando, setApagando] = useState<Produto | null>(null);
+  const [vendoUnidadesDe, setVendoUnidadesDe] = useState<Produto | null>(null);
   const [vendas, setVendas] = useState<Venda[]>([]);
   const [vendasCarregou, setVendasCarregou] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [nomeando, setNomeando] = useState<Venda | null>(null);
   const [nomeNovo, setNomeNovo] = useState("");
+  // Menu "Editar" da venda (voltar pra não pago / apagar) e a confirmação de
+  // apagar em si — a exclusão some do cofrinho pra sempre, então pergunta antes.
+  const [editando, setEditando] = useState<Venda | null>(null);
+  const [apagandoVenda, setApagandoVenda] = useState<Venda | null>(null);
   // Mensagem visível quando migrarVendasAntigas falha — console.error sozinho
   // deixaria o cofrinho parecendo zerado sem explicar por quê (ver efeito
   // de migração abaixo).
@@ -80,7 +88,9 @@ export default function Home() {
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    if (q.get("aba") === "vendidos") setAba("vendidos");
+    const abaQuery = q.get("aba");
+    if (abaQuery === "vendidos") setAba("vendidos");
+    if (abaQuery === "falta") setAba("falta");
     // Veio de "Vendido → já recebi": comemora com o mesmo confete do "Recebi!".
     if (q.get("festa") === "1") {
       setFesta(true);
@@ -207,6 +217,27 @@ export default function Home() {
     });
   }
 
+  // Marcou "Recebi!" sem querer: a venda volta pra "falta pagar" (sem confete).
+  function naoPagou(vendaId: string) {
+    const anterior = vendas;
+    setVendas(vendas.map((v) => (v.id === vendaId ? { ...v, pagoEm: null } : v)));
+    db.marcarNaoPago(vendaId).catch((e) => {
+      setVendas(anterior);
+      falhou(e);
+    });
+  }
+
+  // Apaga a venda de vez (foi só teste). Some da lista na hora; se o banco
+  // recusar, ela volta pro lugar.
+  function removerVenda(vendaId: string) {
+    const anterior = vendas;
+    setVendas(vendas.filter((v) => v.id !== vendaId));
+    db.apagarVenda(vendaId).catch((e) => {
+      setVendas(anterior);
+      falhou(e);
+    });
+  }
+
   async function salvarNome() {
     const alvo = nomeando;
     if (!alvo) return;
@@ -287,24 +318,26 @@ export default function Home() {
         </div>
       )}
 
-      {/* Abas */}
-      <div className="mb-5 grid grid-cols-2 gap-2">
-        <button
-          onClick={() => setAba("catalogo")}
-          className={`btn-grande ${
-            aba === "catalogo" ? "btn-neon" : "btn-escuro"
-          }`}
-        >
-          Meus produtos
-        </button>
-        <button
-          onClick={() => setAba("vendidos")}
-          className={`btn-grande ${
-            aba === "vendidos" ? "btn-neon" : "btn-escuro"
-          }`}
-        >
-          Vendidos
-        </button>
+      {/* Abas — três agora, então pílula compacta (o btn-grande não cabe em
+          três no celular sem quebrar o rótulo em duas linhas). */}
+      <div className="mb-5 grid grid-cols-3 gap-2">
+        {(
+          [
+            ["catalogo", "Meus produtos"],
+            ["vendidos", "Vendidos"],
+            ["falta", "Falta receber"],
+          ] as [Aba, string][]
+        ).map(([id, rotulo]) => (
+          <button
+            key={id}
+            onClick={() => setAba(id)}
+            className={`flex min-h-[48px] items-center justify-center rounded-full px-1.5 text-center text-xs font-extrabold leading-tight ${
+              aba === id ? "btn-neon" : "btn-escuro"
+            }`}
+          >
+            {rotulo}
+          </button>
+        ))}
       </div>
 
       {!carregou ? (
@@ -329,7 +362,9 @@ export default function Home() {
           )
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {calculos.map(({ produto, resultado }) => (
+            {calculos.map(({ produto, resultado }) => {
+              const vendasDesta = vendasDaPeca(vendas, produto.id);
+              return (
               <div
                 key={produto.id}
                 className="card animate-pop overflow-hidden p-0"
@@ -395,6 +430,20 @@ export default function Home() {
                       </Etiqueta>
                     </div>
 
+                    {vendasDesta.length > 0 && (
+                      <button
+                        onClick={() => setVendoUnidadesDe(produto)}
+                        className="mt-3 flex w-full items-center justify-between gap-2 rounded-lg border border-borda bg-painel2 px-3 py-2 active:translate-y-0.5"
+                      >
+                        <span className="text-sm font-extrabold text-tinta">
+                          {rotuloVendidos(vendasDesta.length)}
+                        </span>
+                        <span className="text-sm font-bold text-ciano">
+                          ver quem comprou ›
+                        </span>
+                      </button>
+                    )}
+
                     <div className="mt-3 flex gap-2">
                       <Link
                         href={`/resultado?id=${produto.id}`}
@@ -412,7 +461,8 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )
       ) : !vendasCarregou ? (
@@ -432,12 +482,14 @@ export default function Home() {
           clientes={clientes}
           cores={cores}
           empresa={empresa}
+          modo={aba === "vendidos" ? "pagas" : "pendentes"}
           onReceber={receber}
           onNomear={(v) => {
             setNomeando(v);
             setNomeNovo(clientes.find((c) => c.id === v.clienteId)?.nome ?? "");
           }}
-          onVenderDeNovo={(v) => router.push(`/orcamento?de=${v.id}`)}
+          onEditar={(v) => setEditando(v)}
+          onApagar={(v) => setApagandoVenda(v)}
         />
       )}
 
@@ -465,6 +517,24 @@ export default function Home() {
           onConfirmar={() => apagar(apagando.id)}
           onFechar={() => setApagando(null)}
         />
+      )}
+
+      {/* Janelinha só de ver: as unidades vendidas daquela peça. Receber e
+          trocar nome continuam nas abas de venda, não aqui. */}
+      {vendoUnidadesDe && (
+        <Dialogo
+          icone={<IconeMoeda size={26} />}
+          titulo={`${vendoUnidadesDe.nome} — ${rotuloVendidos(
+            vendasDaPeca(vendas, vendoUnidadesDe.id).length
+          )}`}
+          onFechar={() => setVendoUnidadesDe(null)}
+        >
+          <EspecificacoesProduto
+            vendas={vendasDaPeca(vendas, vendoUnidadesDe.id)}
+            clientes={clientes}
+            cores={cores}
+          />
+        </Dialogo>
       )}
 
       {aviso && (
@@ -502,6 +572,56 @@ export default function Home() {
             className="w-full rounded-xl border-2 border-borda bg-painel2 p-3 text-center text-lg font-bold text-tinta outline-none focus:border-neon"
           />
         </Dialogo>
+      )}
+
+      {/* Menu "Editar" da venda: as duas coisas que dão errado no dia a dia —
+          marcou pago sem querer, ou foi só um teste. Nada de trocar nome nem
+          vender de novo aqui. */}
+      {editando && (
+        <Dialogo
+          icone={<IconeEngrenagem size={26} />}
+          titulo="Arrumar esta venda"
+          texto="Foi só teste, ou marcou pago sem querer?"
+          dispensar="Deixa quieto"
+          onFechar={() => setEditando(null)}
+        >
+          <div className="flex flex-col gap-2">
+            {recebido(editando) && (
+              <button
+                onClick={() => {
+                  naoPagou(editando.id);
+                  setEditando(null);
+                }}
+                className="btn-grande btn-escuro w-full"
+              >
+                Ainda não me pagou
+              </button>
+            )}
+            <button
+              onClick={() => {
+                const v = editando;
+                setEditando(null);
+                setApagandoVenda(v);
+              }}
+              className="btn-grande btn-perigo w-full"
+            >
+              Apagar este pedido
+            </button>
+          </div>
+        </Dialogo>
+      )}
+
+      {apagandoVenda && (
+        <Dialogo
+          tom="perigo"
+          icone={<IconeLixeira size={26} />}
+          titulo="Apagar esta venda?"
+          texto="Ela some do cofrinho pra sempre."
+          confirmar="Sim, apagar"
+          cancelar="Não, deixa"
+          onConfirmar={() => removerVenda(apagandoVenda.id)}
+          onFechar={() => setApagandoVenda(null)}
+        />
       )}
     </main>
   );
