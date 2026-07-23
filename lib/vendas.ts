@@ -17,9 +17,19 @@ export function recebido(v: Venda): boolean {
   return v.pagoEm !== null;
 }
 
+/** Vendas que já entraram no caixa e aparecem na aba "Vendidos". */
+export function vendasPagas(vendas: Venda[]): Venda[] {
+  return vendas.filter(recebido);
+}
+
+/** Vendas que ainda aguardam pagamento e aparecem em "Falta receber". */
+export function vendasPendentes(vendas: Venda[]): Venda[] {
+  return vendas.filter((v) => !recebido(v));
+}
+
 /** O cofrinho: só o que já entrou de verdade. Soma LUCRO. */
 export function totalNoCaixa(vendas: Venda[]): number {
-  return vendas.filter(recebido).reduce((s, v) => s + lucroDaVenda(v), 0);
+  return vendasPagas(vendas).reduce((s, v) => s + lucroDaVenda(v), 0);
 }
 
 /**
@@ -27,7 +37,7 @@ export function totalNoCaixa(vendas: Venda[]): number {
  * é proposital: o cofrinho mede ganho, isto aqui mede dinheiro a chegar.
  */
 export function totalQueTeDevem(vendas: Venda[]): number {
-  return vendas.filter((v) => !recebido(v)).reduce((s, v) => s + v.preco, 0);
+  return vendasPendentes(vendas).reduce((s, v) => s + v.preco, 0);
 }
 
 /**

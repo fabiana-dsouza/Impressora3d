@@ -632,6 +632,72 @@ export async function marcarPago(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Desfaz o "recebi": a venda volta pra "falta pagar". Pra quando marcou pago
+ * sem querer (apertou o botão errado). O oposto de marcarPago.
+ */
+export async function marcarNaoPago(id: string): Promise<void> {
+  const uid = await idUsuario();
+  const { error } = await supabase()
+    .from("vendas")
+    .update({ pago_em: null })
+    .eq("user_id", uid)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Apaga a venda de vez — some do cofrinho pra sempre. Pra linhas que foram só
+ * teste. Não desfaz: por isso a tela pergunta antes.
+ */
+export async function apagarVenda(id: string): Promise<void> {
+  const uid = await idUsuario();
+  const { error } = await supabase()
+    .from("vendas")
+    .delete()
+    .eq("user_id", uid)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Renomeia o produto a partir de uma venda. Se o produto ainda existe, mantém
+ * o catálogo e todas as vendas dele com o mesmo nome. Venda órfã muda sozinha.
+ */
+export async function renomearProdutoDaVenda(
+  vendaId: string,
+  produtoId: string | null,
+  produtoNome: string
+): Promise<void> {
+  const uid = await idUsuario();
+  const sb = supabase();
+  const nome = produtoNome.trim();
+
+  if (produtoId) {
+    const produto = await sb
+      .from("produtos")
+      .update({ nome })
+      .eq("user_id", uid)
+      .eq("id", produtoId);
+    if (produto.error) throw produto.error;
+
+    const vendas = await sb
+      .from("vendas")
+      .update({ produto_nome: nome })
+      .eq("user_id", uid)
+      .eq("produto_id", produtoId);
+    if (vendas.error) throw vendas.error;
+    return;
+  }
+
+  const venda = await sb
+    .from("vendas")
+    .update({ produto_nome: nome })
+    .eq("user_id", uid)
+    .eq("id", vendaId);
+  if (venda.error) throw venda.error;
+}
+
 export async function definirClienteDaVenda(
   vendaId: string,
   clienteId: string

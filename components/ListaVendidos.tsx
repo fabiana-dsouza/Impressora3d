@@ -2,90 +2,141 @@
 
 import { acharCor } from "@/lib/calc-produto";
 import { brl } from "@/lib/format";
-import { lucroDaVenda, recebido, totalNoCaixa, totalQueTeDevem } from "@/lib/vendas";
+import {
+  lucroDaVenda,
+  recebido,
+  totalNoCaixa,
+  totalQueTeDevem,
+  vendasPagas,
+  vendasPendentes,
+} from "@/lib/vendas";
 import type { Cliente, Cor, Venda } from "@/lib/types";
 import Carretel from "@/components/Carretel";
 import Valor from "@/components/Valor";
-import { IconeMoeda } from "@/components/Icones";
+import { IconeMoeda, IconeRelogio } from "@/components/Icones";
 
 /**
- * A aba "Vendidos": o cofrinho em cima e as vendas embaixo.
+ * A lista de vendas — usada nas DUAS abas de dinheiro:
+ *  - "pagas": a aba Vendidos. Em cima o cofrinho; cada venda tem "Editar".
+ *  - "pendentes": a aba Falta receber. Em cima quanto te devem; cada venda
+ *    tem "Recebi!" e permite corrigir o nome do produto.
  *
- * Duas coisas que a tela precisa deixar óbvias:
- *  - vender não é receber (só o recebido conta no cofrinho);
- *  - venda sem cliente é um convite pra preencher, não um defeito.
+ * Recebe TODAS as vendas (pro cofrinho e o "te devem" somarem certo) e filtra
+ * aqui dentro qual subconjunto mostrar, conforme o modo.
  */
 export default function ListaVendidos({
   vendas,
   clientes,
   cores,
   empresa,
+  modo,
   onReceber,
   onNomear,
-  onVenderDeNovo,
+  onEditar,
 }: {
   vendas: Venda[];
   clientes: Cliente[];
   cores: Cor[];
   empresa: string;
+  modo: "pagas" | "pendentes";
   onReceber: (vendaId: string) => void;
   onNomear: (venda: Venda) => void;
-  onVenderDeNovo: (venda: Venda) => void;
+  /** Abre as opções de edição disponíveis para a venda. */
+  onEditar: (venda: Venda) => void;
 }) {
-  if (vendas.length === 0) {
-    return (
-      <div className="card flex flex-col items-center py-8 text-center">
-        <IconeMoeda size={56} className="text-mute" />
-        <p className="display mt-4 text-xl font-bold text-tinta">
-          Ainda não vendeu nada
-        </p>
-        <p className="mt-1 font-bold text-mute">
-          Escolha uma peça em "Meus produtos" e toque em{" "}
-          <span className="text-neon">"Fazer orçamento"</span>.
-        </p>
-      </div>
-    );
-  }
+  const pagas = modo === "pagas";
+  const lista = pagas ? vendasPagas(vendas) : vendasPendentes(vendas);
 
   const caixa = totalNoCaixa(vendas);
   const devendo = totalQueTeDevem(vendas);
-  const quantasPagas = vendas.filter(recebido).length;
+  const quantasPagas = vendasPagas(vendas).length;
+  const quantasPendentes = vendas.length - quantasPagas;
 
   function nomeDoCliente(v: Venda): string | null {
     if (!v.clienteId) return null;
     return clientes.find((c) => c.id === v.clienteId)?.nome ?? null;
   }
 
+  // Vazio: se nunca vendeu nada, o convite é o mesmo dos dois lados (ir pra
+  // Meus produtos). Se já vendeu mas esta aba está vazia, a mensagem explica
+  // pra onde a venda foi.
+  if (lista.length === 0) {
+    const nuncaVendeu = vendas.length === 0;
+    return (
+      <div className="card flex flex-col items-center py-8 text-center">
+        {pagas ? (
+          <IconeMoeda size={56} className="text-mute" />
+        ) : (
+          <IconeRelogio size={56} className="text-mute" />
+        )}
+        <p className="display mt-4 text-xl font-bold text-tinta">
+          {nuncaVendeu
+            ? "Ainda não vendeu nada"
+            : pagas
+            ? "Nada no cofrinho ainda"
+            : "Ninguém te devendo! 🎉"}
+        </p>
+        <p className="mt-1 font-bold text-mute">
+          {nuncaVendeu ? (
+            <>
+              Escolha uma peça em "Meus produtos" e toque em{" "}
+              <span className="text-neon">"Fazer orçamento"</span>.
+            </>
+          ) : pagas ? (
+            <>
+              Suas vendas estão esperando em{" "}
+              <span className="text-ciano">"Falta receber"</span>.
+            </>
+          ) : (
+            "Todo mundo já pagou o que devia."
+          )}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <>
-      {/* O cofrinho: só o dinheiro que já entrou de verdade. */}
-      <div className="card caixa-valor mb-4 text-center">
-        <p className="display text-xs font-bold uppercase tracking-[0.2em] text-mute">
-          cofrinho da {empresa || "empresa"}
-        </p>
-        <Valor
-          valor={Math.abs(caixa)}
-          max="3.5rem"
-          min="1.5rem"
-          className={`mt-1 block font-bold ${
-            caixa < 0 ? "text-perigo" : "brilho text-neon"
-          }`}
-        />
-        <p className="mt-1 font-bold text-mute">
-          ganho de verdade, com {quantasPagas} venda
-          {quantasPagas === 1 ? "" : "s"} paga{quantasPagas === 1 ? "" : "s"} 🎉
-        </p>
-
-        {devendo > 0 && (
-          <p className="mt-3 border-t border-borda pt-3 font-bold text-mute">
-            Ainda te devem{" "}
-            <span className="text-ciano">{brl(devendo)}</span>
+      {pagas ? (
+        /* O cofrinho: só o dinheiro que já entrou de verdade. */
+        <div className="card caixa-valor mb-4 text-center">
+          <p className="display text-xs font-bold uppercase tracking-[0.2em] text-mute">
+            cofrinho da {empresa || "empresa"}
           </p>
-        )}
-      </div>
+          <Valor
+            valor={Math.abs(caixa)}
+            max="3.5rem"
+            min="1.5rem"
+            className={`mt-1 block font-bold ${
+              caixa < 0 ? "text-perigo" : "brilho text-neon"
+            }`}
+          />
+          <p className="mt-1 font-bold text-mute">
+            ganho de verdade, com {quantasPagas} venda
+            {quantasPagas === 1 ? "" : "s"} paga{quantasPagas === 1 ? "" : "s"} 🎉
+          </p>
+        </div>
+      ) : (
+        /* Quanto ainda vão te pagar — não é do cofrinho ainda, por isso ciano. */
+        <div className="card caixa-valor mb-4 text-center">
+          <p className="display text-xs font-bold uppercase tracking-[0.2em] text-mute">
+            falta receber
+          </p>
+          <Valor
+            valor={devendo}
+            max="3.5rem"
+            min="1.5rem"
+            className="mt-1 block font-bold text-ciano"
+          />
+          <p className="mt-1 font-bold text-mute">
+            {quantasPendentes} venda{quantasPendentes === 1 ? "" : "s"} esperando
+            pagamento
+          </p>
+        </div>
+      )}
 
       <div className="space-y-3">
-        {vendas.map((v) => {
+        {lista.map((v) => {
           const nome = nomeDoCliente(v);
           const pago = recebido(v);
           return (
@@ -154,29 +205,31 @@ export default function ListaVendidos({
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {!pago && (
+                {pagas ? (
+                  /* Já pagou: só dá pra arrumar (marcou sem querer / foi teste).
+                     Trocar nome e vender de novo saíram daqui de propósito —
+                     nome só no "** falta o nome **", vender é em Meus produtos. */
                   <button
-                    onClick={() => onReceber(v.id)}
-                    className="btn-grande btn-neon min-h-[48px] flex-1 text-base"
-                  >
-                    Recebi!
-                  </button>
-                )}
-                {nome && (
-                  <button
-                    onClick={() => onNomear(v)}
+                    onClick={() => onEditar(v)}
                     className="btn-grande btn-escuro min-h-[48px] flex-1 text-base"
                   >
-                    Trocar o nome
+                    Editar
                   </button>
-                )}
-                {v.produtoId && (
-                  <button
-                    onClick={() => onVenderDeNovo(v)}
-                    className="btn-grande btn-escuro min-h-[48px] flex-1 text-base"
-                  >
-                    Vender de novo
-                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => onEditar(v)}
+                      className="btn-grande btn-escuro min-h-[48px] flex-1 text-base"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => onReceber(v.id)}
+                      className="btn-grande btn-neon min-h-[48px] flex-1 text-base"
+                    >
+                      Recebi!
+                    </button>
+                  </>
                 )}
               </div>
             </div>

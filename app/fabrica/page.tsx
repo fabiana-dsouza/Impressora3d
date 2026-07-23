@@ -80,6 +80,7 @@ export default function Home() {
   // Menu "Editar" da venda (voltar pra não pago / apagar) e a confirmação de
   // apagar em si — a exclusão some do cofrinho pra sempre, então pergunta antes.
   const [editando, setEditando] = useState<Venda | null>(null);
+  const [nomeProdutoVenda, setNomeProdutoVenda] = useState("");
   const [apagandoVenda, setApagandoVenda] = useState<Venda | null>(null);
   // Mensagem visível quando migrarVendasAntigas falha — console.error sozinho
   // deixaria o cofrinho parecendo zerado sem explicar por quê (ver efeito
@@ -236,6 +237,41 @@ export default function Home() {
       setVendas(anterior);
       falhou(e);
     });
+  }
+
+  async function salvarNomeProdutoVenda() {
+    const alvo = editando;
+    const nome = nomeProdutoVenda.trim();
+    if (!alvo || !nome) return;
+
+    const anterior = vendas;
+    const produtosAnteriores = produtos;
+    setEditando(null);
+    setVendas(
+      vendas.map((v) =>
+        alvo.produtoId
+          ? v.produtoId === alvo.produtoId
+            ? { ...v, produtoNome: nome }
+            : v
+          : v.id === alvo.id
+          ? { ...v, produtoNome: nome }
+          : v
+      )
+    );
+    if (alvo.produtoId) {
+      setProdutos(
+        produtos.map((p) =>
+          p.id === alvo.produtoId ? { ...p, nome } : p
+        )
+      );
+    }
+    try {
+      await db.renomearProdutoDaVenda(alvo.id, alvo.produtoId, nome);
+    } catch (e) {
+      setVendas(anterior);
+      setProdutos(produtosAnteriores);
+      falhou(e);
+    }
   }
 
   async function salvarNome() {
@@ -488,8 +524,10 @@ export default function Home() {
             setNomeando(v);
             setNomeNovo(clientes.find((c) => c.id === v.clienteId)?.nome ?? "");
           }}
-          onEditar={(v) => setEditando(v)}
-          onApagar={(v) => setApagandoVenda(v)}
+          onEditar={(v) => {
+            setEditando(v);
+            setNomeProdutoVenda(v.produtoNome);
+          }}
         />
       )}
 
@@ -574,18 +612,33 @@ export default function Home() {
         </Dialogo>
       )}
 
-      {/* Menu "Editar" da venda: as duas coisas que dão errado no dia a dia —
-          marcou pago sem querer, ou foi só um teste. Nada de trocar nome nem
-          vender de novo aqui. */}
+      {/* O nome acompanha o produto do catálogo e as outras vendas dele. */}
       {editando && (
         <Dialogo
           icone={<IconeEngrenagem size={26} />}
           titulo="Arrumar esta venda"
-          texto="Foi só teste, ou marcou pago sem querer?"
+          texto="O novo nome também aparece em Meus produtos."
           dispensar="Deixa quieto"
           onFechar={() => setEditando(null)}
         >
           <div className="flex flex-col gap-2">
+            <label className="text-left text-sm font-extrabold text-mute">
+              Nome do produto
+              <input
+                autoFocus
+                value={nomeProdutoVenda}
+                onChange={(e) => setNomeProdutoVenda(e.target.value)}
+                maxLength={40}
+                className="mt-1 w-full rounded-xl border-2 border-borda bg-painel2 p-3 text-lg font-bold text-tinta outline-none focus:border-neon"
+              />
+            </label>
+            <button
+              onClick={salvarNomeProdutoVenda}
+              disabled={!nomeProdutoVenda.trim()}
+              className="btn-grande btn-neon w-full disabled:opacity-40"
+            >
+              Salvar nome
+            </button>
             {recebido(editando) && (
               <button
                 onClick={() => {

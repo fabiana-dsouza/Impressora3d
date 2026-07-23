@@ -193,12 +193,13 @@ function Resultado() {
         preco: precoNota,
         custo: resultado.custoTotal,
         // "Sim, já recebi" cai direto no cofrinho; "Ainda não" fica em
-        // "falta pagar" até ela marcar "Recebi!" lá na aba Vendidos.
+        // "Falta receber" até ela marcar "Recebi!" lá.
         pagoEm: jaPagou ? Date.now() : null,
       });
-      // Recebeu na hora? A fábrica solta o confete na aba Vendidos.
+      // Recebeu na hora? Vai pra Vendidos com confete. Se não, vai pra "Falta
+      // receber", que é onde a venda esperando pagamento mora agora.
       router.push(
-        jaPagou ? "/fabrica?aba=vendidos&festa=1" : "/fabrica?aba=vendidos"
+        jaPagou ? "/fabrica?aba=vendidos&festa=1" : "/fabrica?aba=falta"
       );
     } catch (e) {
       console.error(e);
@@ -253,6 +254,16 @@ function Resultado() {
           mudam a notinha ao vivo. */}
       {ehOrcamento && (
         <div className="mx-auto mb-8 max-w-md space-y-6">
+          {ehNovo && (
+            <div className="animate-pop rounded-2xl border-2 border-neon/40 bg-neon/10 p-4 text-center">
+              <p className="display text-lg font-bold text-tinta">
+                {produto.nome} entrou na fábrica!
+              </p>
+              <p className="mt-0.5 font-bold text-mute">
+                Já quer fazer o primeiro orçamento?
+              </p>
+            </div>
+          )}
           <div>
             <h2 className="display mb-3 text-xl font-bold text-tinta">
               Pra quem é?

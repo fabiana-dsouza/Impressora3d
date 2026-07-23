@@ -8,6 +8,8 @@ import {
   precoBaseDaVenda,
   vendasDaPeca,
   rotuloVendidos,
+  vendasPagas,
+  vendasPendentes,
 } from "./vendas";
 import { calcularProduto } from "./calc-produto";
 import { CONFIG_PADRAO } from "./defaults";
@@ -45,6 +47,26 @@ describe("recebido", () => {
 
   it("com pagoEm, recebeu", () => {
     expect(recebido(venda({ pagoEm: 1700000000000 }))).toBe(true);
+  });
+});
+
+describe("abas de vendas", () => {
+  const vs = [
+    venda({ id: "paga-1", pagoEm: 100 }),
+    venda({ id: "pendente-1", pagoEm: null }),
+    venda({ id: "paga-2", pagoEm: 200 }),
+    venda({ id: "pendente-2", pagoEm: null }),
+  ];
+
+  it('"Vendidos" contém somente as vendas pagas', () => {
+    expect(vendasPagas(vs).map((v) => v.id)).toEqual(["paga-1", "paga-2"]);
+  });
+
+  it('"Falta receber" contém somente as vendas pendentes', () => {
+    expect(vendasPendentes(vs).map((v) => v.id)).toEqual([
+      "pendente-1",
+      "pendente-2",
+    ]);
   });
 });
 

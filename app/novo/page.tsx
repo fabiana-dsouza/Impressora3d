@@ -156,7 +156,10 @@ export default function NovoProduto() {
     setSalvando(true);
     try {
       await criarProduto(produto);
-      router.push(`/resultado?id=${produto.id}&novo=1`);
+      // ?cores liga o modo orçamento da nota (pra quem é? + negociação +
+      // vender). A peça acabou de nascer, então vai com as cores dela.
+      const cores = produto.coresIds.join(",");
+      router.push(`/resultado?id=${produto.id}&novo=1&cores=${cores}`);
     } catch (e) {
       console.error(e);
       setSalvando(false);

@@ -18,6 +18,7 @@ export default function Dialogo({
   confirmar = "Pode apagar",
   cancelar = "Deixa quieto",
   secundario,
+  dispensar,
   onConfirmar,
   onSecundario,
   onFechar,
@@ -31,6 +32,12 @@ export default function Dialogo({
   cancelar?: string;
   /** Botão do meio que TAMBÉM decide algo (não é só fechar). Ex: "Ainda não". */
   secundario?: string;
+  /**
+   * Rótulo do único botão quando a caixa é só um menu (sem onConfirmar): troca
+   * o "Entendi" verde por um botão neutro tipo "Deixa quieto" — pra caixa que
+   * é uma lista de escolhas (os children), não um aviso pra confirmar leitura.
+   */
+  dispensar?: string;
   onConfirmar?: () => void;
   onSecundario?: () => void;
   onFechar: () => void;
@@ -86,10 +93,16 @@ export default function Dialogo({
               onFechar();
             }}
             className={`btn-grande flex-1 ${
-              onConfirmar && perigo ? "btn-perigo" : "btn-neon"
+              onConfirmar
+                ? perigo
+                  ? "btn-perigo"
+                  : "btn-neon"
+                : dispensar
+                ? "btn-escuro"
+                : "btn-neon"
             }`}
           >
-            {onConfirmar ? confirmar : "Entendi"}
+            {onConfirmar ? confirmar : dispensar ?? "Entendi"}
           </button>
           {onSecundario ? (
             // Segundo botão que também decide algo (ex: "Ainda não" grava a
