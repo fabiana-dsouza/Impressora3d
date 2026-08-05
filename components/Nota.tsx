@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { calcularProduto, acharCor } from "@/lib/calc-produto";
 import { precoBaseDaVenda } from "@/lib/vendas";
 import { nomeLimpo } from "@/lib/clientes";
@@ -12,7 +12,7 @@ import PrecoVendido from "@/components/PrecoVendido";
 import NotinhaInterna from "@/components/NotinhaInterna";
 import NotinhaCliente from "@/components/NotinhaCliente";
 import Dialogo from "@/components/Dialogo";
-import { IconeMoeda } from "@/components/Icones";
+import { IconeMoeda, IconeVoltar } from "@/components/Icones";
 
 /** Quantas pastilhas de cliente recente cabem sem virar parede de botão. */
 const QUANTAS_PASTILHAS = 6;
@@ -28,10 +28,13 @@ export type DadosVenda = {
 };
 
 /**
- * A nota: o bloco de fechar uma venda (por quanto vai vender + as duas notinhas
- * + Vendido/Só orçamento + o cliente) OU, em `somenteLeitura`, só as duas
- * notinhas pra ver a conta. Não sabe gravar nem navegar — emite `onVender` /
- * `onSoOrcamento` e o pai (a /novo ou a /resultado) cuida do banco e da rota.
+ * A nota, em duas telas:
+ *  - "ajustar": o resumo (opcional) + o teste de negociação (por quanto vender);
+ *    um botão "Ver a notinha" leva pra próxima.
+ *  - "fechar": pra quem é (preenche a notinha ao vivo) + as duas notinhas +
+ *    Vendido/Só orçamento.
+ * Em `somenteLeitura` (ver a conta) mostra só as notinhas, sem telas.
+ * Não sabe gravar nem navegar — emite `onVender` / `onSoOrcamento`.
  */
 export default function Nota({
   produto,
@@ -42,6 +45,7 @@ export default function Nota({
   clientes,
   coresIniciais,
   clienteInicial,
+  resumo,
   ehNovo = false,
   ehRepete = false,
   somenteLeitura = false,
@@ -58,6 +62,8 @@ export default function Nota({
   clientes: Cliente[];
   coresIniciais: string[];
   clienteInicial: string;
+  /** Mostrado no topo da fase "ajustar" (a /novo passa o "Quanto ficou?"). */
+  resumo?: ReactNode;
   ehNovo?: boolean;
   ehRepete?: boolean;
   somenteLeitura?: boolean;
@@ -72,8 +78,8 @@ export default function Nota({
   const [coresIds, setCoresIds] = useState<string[]>(() => coresIniciais);
   const [valorFinal, setValorFinal] = useState("");
   const [cliente, setCliente] = useState(clienteInicial);
-  // Ela apertou "Vendido": revela o passo do cliente.
-  const [vendendo, setVendendo] = useState(false);
+  // Duas telas: "ajustar" (preço) → "Ver a notinha" → "fechar" (nome + vender).
+  const [fase, setFase] = useState<"ajustar" | "fechar">("ajustar");
   // Modo repete: os editores começam escondidos; "Mudou algo?" liga.
   const [mudouAlgo, setMudouAlgo] = useState(false);
   // Nome DESTA venda — no repete vira variação sem renomear a peça.
@@ -135,8 +141,8 @@ export default function Nota({
     );
   }
 
-  // Pra começar a venda (revelar o cliente) basta ter cor e valor. O nome do
-  // cliente é exigido só no passo seguinte, na hora de confirmar.
+  // Pra ir pra tela da notinha basta ter cor e valor. O nome do cliente é
+  // exigido só lá, na hora de marcar como vendido.
   const podeIniciar = coresIds.length > 0 && precoNota > 0;
 
   function confirmarVenda(jaPagou: boolean) {
@@ -151,227 +157,230 @@ export default function Nota({
     });
   }
 
-  return (
-    <>
-      {ehOrcamento && (
-        <div className="mx-auto mb-8 max-w-md space-y-6">
-          {ehNovo && (
-            <div className="animate-pop rounded-2xl border-2 border-neon/40 bg-neon/10 p-4 text-center">
-              <p className="display text-lg font-bold text-tinta">
-                {produto.nome} entrou na fábrica!
-              </p>
-              <p className="mt-0.5 font-bold text-mute">
-                Bora vender pro seu cliente?
-              </p>
-            </div>
-          )}
-          {editando ? (
-            <>
-              {/* Só no repete: nome de variação ("Chaveiro do Batman") sem
-                  renomear a peça no catálogo. */}
-              {ehRepete && (
-                <div>
-                  <h2 className="display mb-3 text-xl font-bold text-tinta">
-                    Qual o nome dessa vez?
-                  </h2>
-                  <input
-                    value={nomeVenda}
-                    onChange={(e) => setNomeVenda(e.target.value)}
-                    maxLength={40}
-                    placeholder={produto.nome}
-                    className="w-full rounded-2xl border-2 border-borda bg-painel2 p-4 text-xl font-bold text-tinta outline-none focus:border-neon"
-                  />
-                  <p className="mt-2 text-sm font-bold text-mute">
-                    Continua o mesmo produto — o nome muda só nesta venda.
-                  </p>
-                </div>
-              )}
+  // As duas notinhas — na fase "fechar" e no modo só-leitura.
+  const notinhas = (
+    <div className="grid gap-12 lg:grid-cols-2 lg:items-start lg:gap-8">
+      <section>
+        <p className="mb-3 text-center text-base font-extrabold uppercase tracking-wide text-mute">
+          só sua
+        </p>
+        <NotinhaInterna
+          produto={alvo}
+          config={config}
+          cores={cores}
+          resultado={resultadoNota}
+          empresa={empresa}
+        />
+      </section>
 
-              {/* A cor desta venda. Escondida na /novo (já escolheu no wizard). */}
-              {permiteMudarCor && (
-                <div>
-                  <h2 className="display mb-3 text-xl font-bold text-tinta">
-                    Qual cor dessa vez?
-                  </h2>
-                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-                    {cores.map((c) => {
-                      const ativo = coresIds.includes(c.id);
-                      return (
-                        <button
-                          key={c.id}
-                          onClick={() => alternarCor(c.id)}
-                          className={`flex flex-col items-center gap-1.5 rounded-xl border-2 bg-painel2 p-2.5 transition-all active:translate-y-0.5 ${
-                            ativo ? "scale-105 border-neon" : "border-borda"
-                          }`}
-                        >
-                          <Carretel cor={c.hex} size={52} />
-                          <span
-                            className={`text-xs font-extrabold leading-tight ${
-                              ativo ? "text-neon" : "text-tinta"
-                            }`}
-                          >
-                            {ativo ? "✓ " : ""}
-                            {c.nome}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {coresIds.length >= 2 && (
-                    <p className="mt-4 animate-pop rounded-2xl border border-ciano/30 bg-ciano/10 p-3 text-center font-bold text-ciano">
-                      Você misturou {coresIds.length} cores! Vou usar o preço
-                      médio delas.
-                    </p>
-                  )}
-                </div>
-              )}
+      <section>
+        <p className="mb-3 text-center text-base font-extrabold uppercase tracking-wide text-mute">
+          pro cliente
+        </p>
+        <NotinhaCliente dados={dadosOrcamento} />
+      </section>
+    </div>
+  );
 
-              <PrecoVendido
-                custoTotal={resultado.custoTotal}
-                precoSugerido={resultado.precoVenda}
-                valor={valorFinal}
-                onChange={setValorFinal}
-              />
-            </>
-          ) : (
-            /* Repete colapsado: mostra a última venda pronta e só abre os
-               editores se ela apertar "Mudou algo?". */
-            <div className="card text-center">
-              <p className="display text-lg font-bold text-tinta">
-                Repetindo {produto.nome}
-              </p>
-              <div className="mt-3 flex items-center justify-center gap-3">
-                <span className="flex -space-x-2">
-                  {coresIds.slice(0, 4).map((cid, i) => (
-                    <Carretel key={i} cor={acharCor(cid, cores).hex} size={30} />
-                  ))}
-                </span>
-                <span className="mono text-2xl font-bold text-tinta">
-                  {brl(precoNota)}
-                </span>
-              </div>
-              <button
-                onClick={() => setMudouAlgo(true)}
-                className="btn-escuro mt-4 min-h-[48px] w-full rounded-xl text-base font-extrabold"
-              >
-                Mudou algo?
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+  // Só ver a conta: as notinhas e mais nada.
+  if (somenteLeitura) return notinhas;
 
-      {/* As duas notinhas se parecem de longe, e mandar a errada pro cliente
-          seria o pior erro possível — por isso cada uma tem nome em cima. */}
-      <div className="grid gap-12 lg:grid-cols-2 lg:items-start lg:gap-8">
-        <section>
-          <p className="mb-3 text-center text-base font-extrabold uppercase tracking-wide text-mute">
-            só sua
-          </p>
-          <NotinhaInterna
-            produto={alvo}
-            config={config}
-            cores={cores}
-            resultado={resultadoNota}
-            empresa={empresa}
-          />
-        </section>
+  // TELA 1 — ajustar o preço. As notinhas só aparecem na tela 2.
+  if (fase === "ajustar") {
+    return (
+      <div className="mx-auto max-w-md space-y-6">
+        {ehNovo && (
+          <div className="animate-pop rounded-2xl border-2 border-neon/40 bg-neon/10 p-4 text-center">
+            <p className="display text-lg font-bold text-tinta">
+              {produto.nome} entrou na fábrica!
+            </p>
+            <p className="mt-0.5 font-bold text-mute">
+              Bora vender pro seu cliente?
+            </p>
+          </div>
+        )}
 
-        <section>
-          <p className="mb-3 text-center text-base font-extrabold uppercase tracking-wide text-mute">
-            pro cliente
-          </p>
-          <NotinhaCliente dados={dadosOrcamento} />
-        </section>
-      </div>
+        {resumo}
 
-      {ehOrcamento && (
-        <div className="mx-auto mt-10 max-w-md">
-          {!vendendo ? (
-            /* Ainda decidindo: as notinhas acima já servem de orçamento pra
-               mandar. "Vendido" só revela o cliente; ainda não grava nada. */
-            <>
-              <p className="mb-3 text-center text-base font-extrabold text-mute">
-                Fechou a venda?
-              </p>
-              <div className="flex flex-col gap-3 sm:flex-row-reverse">
-                <button
-                  onClick={() => setVendendo(true)}
-                  disabled={salvando || !podeIniciar}
-                  className="btn-grande btn-neon flex-1 disabled:opacity-60"
-                >
-                  {precoNota > 0 ? `Vendido por ${brl(precoNota)}` : "Vendido"}
-                </button>
-                <button
-                  onClick={() => onSoOrcamento?.()}
-                  disabled={salvando}
-                  className="btn-grande btn-escuro flex-1 disabled:opacity-60"
-                >
-                  Só orçamento
-                </button>
-              </div>
-              <p className="mt-3 text-center font-bold text-mute">
-                {coresIds.length === 0
-                  ? "Escolhe pelo menos uma cor."
-                  : precoNota <= 0
-                  ? "Põe o valor pra marcar como vendido."
-                  : "A notinha do cliente aí em cima já dá pra mandar."}
-              </p>
-            </>
-          ) : (
-            /* Fechou: agora sim, pra quem foi. */
-            <div className="space-y-4">
+        {editando ? (
+          <>
+            {/* Só no repete: nome de variação ("Chaveiro do Batman") sem
+                renomear a peça no catálogo. */}
+            {ehRepete && (
               <div>
                 <h2 className="display mb-3 text-xl font-bold text-tinta">
-                  Pra quem é?
+                  Qual o nome dessa vez?
                 </h2>
                 <input
-                  autoFocus
-                  value={cliente}
-                  onChange={(e) => setCliente(e.target.value)}
-                  maxLength={24}
-                  placeholder="Ex: Maria"
+                  value={nomeVenda}
+                  onChange={(e) => setNomeVenda(e.target.value)}
+                  maxLength={40}
+                  placeholder={produto.nome}
                   className="w-full rounded-2xl border-2 border-borda bg-painel2 p-4 text-xl font-bold text-tinta outline-none focus:border-neon"
                 />
-                {recentes.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {recentes.map((c) => (
+                <p className="mt-2 text-sm font-bold text-mute">
+                  Continua o mesmo produto — o nome muda só nesta venda.
+                </p>
+              </div>
+            )}
+
+            {/* A cor desta venda. Escondida na /novo (já escolheu no wizard). */}
+            {permiteMudarCor && (
+              <div>
+                <h2 className="display mb-3 text-xl font-bold text-tinta">
+                  Qual cor dessa vez?
+                </h2>
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                  {cores.map((c) => {
+                    const ativo = coresIds.includes(c.id);
+                    return (
                       <button
                         key={c.id}
-                        onClick={() => setCliente(c.nome)}
-                        className="btn-escuro min-h-[48px] rounded-full px-4 text-base font-bold"
+                        onClick={() => alternarCor(c.id)}
+                        className={`flex flex-col items-center gap-1.5 rounded-xl border-2 bg-painel2 p-2.5 transition-all active:translate-y-0.5 ${
+                          ativo ? "scale-105 border-neon" : "border-borda"
+                        }`}
                       >
-                        {c.nome}
+                        <Carretel cor={c.hex} size={52} />
+                        <span
+                          className={`text-xs font-extrabold leading-tight ${
+                            ativo ? "text-neon" : "text-tinta"
+                          }`}
+                        >
+                          {ativo ? "✓ " : ""}
+                          {c.nome}
+                        </span>
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
+                </div>
+                {coresIds.length >= 2 && (
+                  <p className="mt-4 animate-pop rounded-2xl border border-ciano/30 bg-ciano/10 p-3 text-center font-bold text-ciano">
+                    Você misturou {coresIds.length} cores! Vou usar o preço médio
+                    delas.
+                  </p>
                 )}
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row-reverse">
-                <button
-                  onClick={() => setPerguntandoPagou(true)}
-                  disabled={salvando || nomeLimpo(cliente).length === 0}
-                  className="btn-grande btn-neon flex-1 disabled:opacity-60"
-                >
-                  Confirmar venda
-                </button>
-                <button
-                  onClick={() => setVendendo(false)}
-                  disabled={salvando}
-                  className="btn-grande btn-escuro flex-1 disabled:opacity-60"
-                >
-                  Voltar
-                </button>
-              </div>
-              {nomeLimpo(cliente).length === 0 && (
-                <p className="text-center font-bold text-mute">
-                  Escreve pra quem é pra fechar a venda.
-                </p>
-              )}
+            )}
+
+            <PrecoVendido
+              custoTotal={resultado.custoTotal}
+              precoSugerido={resultado.precoVenda}
+              valor={valorFinal}
+              onChange={setValorFinal}
+            />
+          </>
+        ) : (
+          /* Repete colapsado: mostra a última venda pronta e só abre os
+             editores se ela apertar "Mudou algo?". */
+          <div className="card text-center">
+            <p className="display text-lg font-bold text-tinta">
+              Repetindo {produto.nome}
+            </p>
+            <div className="mt-3 flex items-center justify-center gap-3">
+              <span className="flex -space-x-2">
+                {coresIds.slice(0, 4).map((cid, i) => (
+                  <Carretel key={i} cor={acharCor(cid, cores).hex} size={30} />
+                ))}
+              </span>
+              <span className="mono text-2xl font-bold text-tinta">
+                {brl(precoNota)}
+              </span>
             </div>
-          )}
+            <button
+              onClick={() => setMudouAlgo(true)}
+              className="btn-escuro mt-4 min-h-[48px] w-full rounded-xl text-base font-extrabold"
+            >
+              Mudou algo?
+            </button>
+          </div>
+        )}
+
+        <div>
+          <button
+            onClick={() => setFase("fechar")}
+            disabled={!podeIniciar}
+            className="btn-grande btn-neon w-full text-xl disabled:opacity-60"
+          >
+            Ver a notinha
+          </button>
+          <p className="mt-3 text-center font-bold text-mute">
+            {coresIds.length === 0
+              ? "Escolhe pelo menos uma cor."
+              : precoNota <= 0
+              ? "Põe o valor pra ver a notinha."
+              : "É essa notinha que você mostra e manda pro cliente."}
+          </p>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  // TELA 2 — pra quem é, a notinha pronta, e vendeu ou não.
+  return (
+    <div className="space-y-8">
+      <div className="mx-auto max-w-md">
+        <h2 className="display mb-3 text-xl font-bold text-tinta">Pra quem é?</h2>
+        <input
+          autoFocus
+          value={cliente}
+          onChange={(e) => setCliente(e.target.value)}
+          maxLength={24}
+          placeholder="Ex: Maria"
+          className="w-full rounded-2xl border-2 border-borda bg-painel2 p-4 text-xl font-bold text-tinta outline-none focus:border-neon"
+        />
+        {recentes.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {recentes.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setCliente(c.nome)}
+                className="btn-escuro min-h-[48px] rounded-full px-4 text-base font-bold"
+              >
+                {c.nome}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {notinhas}
+
+      <div className="mx-auto max-w-md">
+        <p className="mb-3 text-center text-base font-extrabold text-mute">
+          {nomeLimpo(cliente)
+            ? `E aí, ${nomeLimpo(cliente)} vai levar?`
+            : "Fechou a venda?"}
+        </p>
+        <div className="flex flex-col gap-3 sm:flex-row-reverse">
+          <button
+            onClick={() => setPerguntandoPagou(true)}
+            disabled={salvando || nomeLimpo(cliente).length === 0}
+            className="btn-grande btn-neon flex-1 disabled:opacity-60"
+          >
+            {`Vendido por ${brl(precoNota)}`}
+          </button>
+          <button
+            onClick={() => onSoOrcamento?.()}
+            disabled={salvando}
+            className="btn-grande btn-escuro flex-1 disabled:opacity-60"
+          >
+            Só orçamento
+          </button>
+        </div>
+        <p className="mt-3 text-center font-bold text-mute">
+          {nomeLimpo(cliente).length === 0
+            ? "Escreve pra quem é pra marcar como vendido."
+            : "Se vendeu, dá pra marcar quando o dinheiro chegar."}
+        </p>
+        <button
+          onClick={() => setFase("ajustar")}
+          disabled={salvando}
+          className="mx-auto mt-4 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold text-mute underline disabled:opacity-60"
+        >
+          <IconeVoltar size={16} /> mudar o preço
+        </button>
+      </div>
 
       {perguntandoPagou && (
         <Dialogo
@@ -385,6 +394,6 @@ export default function Nota({
           onFechar={() => setPerguntandoPagou(false)}
         />
       )}
-    </>
+    </div>
   );
 }

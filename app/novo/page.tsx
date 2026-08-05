@@ -239,6 +239,45 @@ export default function NovoProduto() {
     }
   }
 
+  // O "Quanto ficou?" (custo + preço indicado) vira o resumo do topo da nota —
+  // a 1ª tela da nota (ajustar o preço). Some quando ela vai ver a notinha.
+  const resumoQuantoFicou =
+    resultado && config ? (
+      <Passo pergunta="Quanto ficou?" icone={<IconeMoeda size={30} />}>
+        {/* 1. Quanto custou pra fazer */}
+        <div className="caixa-valor rounded-xl border border-borda bg-painel2 p-4 text-center">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-mute">
+            custo pra fabricar
+          </p>
+          <Valor
+            valor={resultado.custoTotal}
+            max="1.875rem"
+            min="1.25rem"
+            folga="36px"
+            className="mt-0.5 block font-bold text-tinta"
+          />
+        </div>
+
+        {/* 2. O preço que a calculadora indica — o destaque */}
+        <div className="caixa-valor mt-3 rounded-xl border-2 border-neon/40 bg-neon/10 p-4 text-center">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-mute">
+            preço indicado
+          </p>
+          <Valor
+            valor={resultado.precoVenda}
+            max="2.75rem"
+            min="1.5rem"
+            folga="38px"
+            className="mt-0.5 block font-bold text-neon"
+          />
+          <p className="mt-1 text-sm font-bold text-mute">
+            o custo + {Math.round(travarMargem(config.margemPadrao) * 100)}% de
+            lucro pra você
+          </p>
+        </div>
+      </Passo>
+    ) : null;
+
   const progresso = ((passo + 1) / TOTAL_PASSOS) * 100;
 
   return (
@@ -380,45 +419,8 @@ export default function NovoProduto() {
           </Passo>
         )}
 
-        {/* PASSO 4 — Resumo: quanto custou e o preço indicado. O valor final de
-            cada venda é decidido depois, na nota do orçamento. */}
-        {passo === 3 && resultado && config && (
-          <Passo pergunta="Quanto ficou?" icone={<IconeMoeda size={30} />}>
-            {/* 1. Quanto custou pra fazer */}
-            <div className="caixa-valor rounded-xl border border-borda bg-painel2 p-4 text-center">
-              <p className="text-xs font-extrabold uppercase tracking-widest text-mute">
-                custo pra fabricar
-              </p>
-              <Valor
-                valor={resultado.custoTotal}
-                max="1.875rem"
-                min="1.25rem"
-                folga="36px"
-                className="mt-0.5 block font-bold text-tinta"
-              />
-            </div>
-
-            {/* 2. O preço que a calculadora indica — o destaque da tela */}
-            <div className="caixa-valor mt-3 rounded-xl border-2 border-neon/40 bg-neon/10 p-4 text-center">
-              <p className="text-xs font-extrabold uppercase tracking-widest text-mute">
-                preço indicado
-              </p>
-              <Valor
-                valor={resultado.precoVenda}
-                max="2.75rem"
-                min="1.5rem"
-                folga="38px"
-                className="mt-0.5 block font-bold text-neon"
-              />
-              {/* a margem travada é a que o cálculo usou de verdade — o valor
-                  cru da config podia dizer 10% e o preço acima mostrar 15% */}
-              <p className="mt-1 text-sm font-bold text-mute">
-                o custo + {Math.round(travarMargem(config.margemPadrao) * 100)}%
-                de lucro pra você
-              </p>
-            </div>
-          </Passo>
-        )}
+        {/* PASSO 4 não tem conteúdo aqui: o "Quanto ficou?" (resumoQuantoFicou)
+            e a venda inteira ficam na <Nota> logo abaixo, na largura cheia. */}
       </div>
 
       {/* Mensagem de erro amigável */}
@@ -444,7 +446,7 @@ export default function NovoProduto() {
 
       {/* Passo 4: o orçamento embutido — por quanto vender + notinhas + fechar.
           Fora do wrapper estreito porque as notinhas pedem espaço no desktop. */}
-      {passo === 3 && config && (
+      {passo === 3 && config && resultado && (
         <div className="mt-8">
           <Nota
             produto={rascunho}
@@ -455,6 +457,7 @@ export default function NovoProduto() {
             clientes={clientes}
             coresIniciais={coresIds}
             clienteInicial=""
+            resumo={resumoQuantoFicou}
             ehNovo
             permiteMudarCor={false}
             salvando={salvando}

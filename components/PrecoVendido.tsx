@@ -31,10 +31,10 @@ export default function PrecoVendido({
   return (
     <div className="card">
       <p className="display text-center text-lg font-bold text-tinta">
-        Por quanto você vai vender?
+        Faça um teste de negociação
       </p>
       <p className="mb-4 text-center text-sm font-bold text-mute">
-        Ajuste o valor — o verde te diz se vale a pena. É ele que vai na notinha.
+        Ajuste o valor para ver se vale a pena. 
       </p>
 
       <div className="flex items-center justify-center gap-2">
