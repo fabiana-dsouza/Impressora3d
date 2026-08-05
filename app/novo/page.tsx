@@ -1,16 +1,26 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { lerConfig, lerCores, criarProduto, SemAssinaturaError } from "@/lib/db";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  lerConfig,
+  lerCores,
+  lerClientes,
+  lerPerfil,
+  criarProduto,
+  acharOuCriarCliente,
+  criarVenda,
+  SemAssinaturaError,
+} from "@/lib/db";
 import { CORES_PADRAO } from "@/lib/defaults";
 import { calcular, taxasDaConfig, horasDecimais, travarMargem } from "@/lib/calc";
 import { precoMedioPorGrama } from "@/lib/calc-produto";
 import { novoId } from "@/lib/format";
-import type { Config, Cor, Produto, Unidade } from "@/lib/types";
+import type { Cliente, Config, Cor, Produto, Unidade } from "@/lib/types";
 import Valor from "@/components/Valor";
 import Carretel from "@/components/Carretel";
 import Dialogo from "@/components/Dialogo";
+import Nota, { type DadosVenda } from "@/components/Nota";
 import {
   IconeCadeado,
   IconeEtiqueta,
@@ -38,20 +48,32 @@ export default function NovoProduto() {
   const [minutos, setMinutos] = useState(0);
   const [salvando, setSalvando] = useState(false);
   const [trancada, setTrancada] = useState(false);
+  // Pro passo 4 (a nota embutida): clientes pras pastilhas de recentes e o nome
+  // da empresa pras notinhas.
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [empresa, setEmpresa] = useState("");
 
   useEffect(() => {
     let vivo = true;
     (async () => {
       try {
-        const [cfg, cs] = await Promise.all([lerConfig(), lerCores()]);
+        const [cfg, cs, cls] = await Promise.all([
+          lerConfig(),
+          lerCores(),
+          lerClientes(),
+        ]);
         if (!vivo) return;
         setConfig(cfg);
         setCores(cs);
+        setClientes(cls);
       } catch (e) {
         console.error(e);
         if (vivo) setErro("Não consegui carregar seus dados");
       }
     })();
+    lerPerfil()
+      .then((p) => vivo && setEmpresa(p.nomeEmpresa))
+      .catch(() => {});
     return () => {
       vivo = false;
     };
@@ -136,47 +158,94 @@ export default function NovoProduto() {
     else setPasso((p) => p - 1);
   }
 
-  async function salvar() {
-    if (!config || salvando) return;
-    const produto: Produto = {
-      id: novoId(),
+  // A peça em rascunho, pra alimentar a nota embutida do passo 4. Id estável
+  // (a venda precisa referenciar a peça) e preço sem margem fixa (precoVenda: 0)
+  // — o valor de cada venda é decidido na nota.
+  const rascunhoId = useRef(novoId());
+  const rascunho = useMemo<Produto>(
+    () => ({
+      id: rascunhoId.current,
       nome: nome.trim(),
       coresIds,
       gramas: paraGramas(Number(gramas) || 0),
       unidade,
       horas,
       minutos,
-      margem: config.margemPadrao,
-      // Sem preço fixo: a base do orçamento vira o preço indicado, e o valor
-      // final de cada venda é definido na nota.
+      margem: config?.margemPadrao ?? 0,
       precoVenda: 0,
-      criadoEm: Date.now(),
+      criadoEm: 0,
       vendidos: 0,
-    };
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nome, coresIds, gramas, unidade, horas, minutos, config]
+  );
+
+  // Salva a peça uma vez só (cacheada), mesmo que a gente tente vender de novo
+  // depois de um erro no meio — sem re-inserir o mesmo id.
+  const pecaSalva = useRef<Produto | null>(null);
+  async function salvarPeca(): Promise<Produto> {
+    if (pecaSalva.current) return pecaSalva.current;
+    const produto: Produto = { ...rascunho, criadoEm: Date.now() };
+    await criarProduto(produto);
+    pecaSalva.current = produto;
+    return produto;
+  }
+
+  // Sem assinatura o banco recusa o INSERT — não é problema de internet, então
+  // abre a tela de trava em vez de mandar conferir o wi-fi.
+  function tratarErroAoSalvar(e: unknown) {
+    console.error(e);
+    setSalvando(false);
+    if (e instanceof SemAssinaturaError) {
+      setTrancada(true);
+      return;
+    }
+    setErro("Não consegui salvar. Confere a internet e tenta de novo!");
+  }
+
+  // "Só orçamento": guarda a peça no catálogo e volta — sem registrar venda.
+  async function soOrcamento() {
+    if (!config || salvando) return;
     setSalvando(true);
     try {
-      await criarProduto(produto);
-      // ?cores liga o modo orçamento da nota (pra quem é? + negociação +
-      // vender). A peça acabou de nascer, então vai com as cores dela.
-      const cores = produto.coresIds.join(",");
-      router.push(`/resultado?id=${produto.id}&novo=1&cores=${cores}`);
+      await salvarPeca();
+      router.push("/fabrica");
     } catch (e) {
-      console.error(e);
-      setSalvando(false);
-      // Sem assinatura o banco recusa o INSERT. Culpar a internet aqui manda a
-      // criança conferir o wi-fi por um problema que é de pagamento.
-      if (e instanceof SemAssinaturaError) {
-        setTrancada(true);
-        return;
-      }
-      setErro("Não consegui salvar. Confere a internet e tenta de novo!");
+      tratarErroAoSalvar(e);
+    }
+  }
+
+  // "Vendido": guarda a peça e registra a primeira venda dela pro cliente.
+  async function vender(dados: DadosVenda) {
+    if (!config || salvando) return;
+    setSalvando(true);
+    try {
+      const produto = await salvarPeca();
+      const clienteId = await acharOuCriarCliente(dados.cliente);
+      await criarVenda({
+        produtoId: produto.id,
+        produtoNome: dados.produtoNome,
+        clienteId,
+        coresIds: dados.coresIds,
+        preco: dados.preco,
+        custo: dados.custo,
+        pagoEm: dados.jaPagou ? Date.now() : null,
+      });
+      router.push(
+        dados.jaPagou ? "/fabrica?aba=vendidos&festa=1" : "/fabrica?aba=falta"
+      );
+    } catch (e) {
+      tratarErroAoSalvar(e);
     }
   }
 
   const progresso = ((passo + 1) / TOTAL_PASSOS) * 100;
 
   return (
-    <main className="mx-auto w-full max-w-xl">
+    <main className="mx-auto w-full max-w-md lg:max-w-4xl">
+      {/* Chrome do wizard e passos 1–4 ficam estreitos; só a nota do passo 4
+          (as notinhas) usa a largura cheia. */}
+      <div className="mx-auto max-w-xl">
       {/* Progresso: camadas sendo impressas */}
       <div className="mb-6 flex items-center gap-3">
         <button
@@ -359,25 +428,41 @@ export default function NovoProduto() {
         </p>
       )}
 
-      {/* Botão avançar / salvar */}
-      <div className="mt-6">
-        {passo < TOTAL_PASSOS - 1 ? (
+      {/* Botão continuar — o passo 4 fecha pela nota (Vendido / Só orçamento),
+          não por um botão daqui. */}
+      {passo < TOTAL_PASSOS - 1 && (
+        <div className="mt-6">
           <button
             onClick={avancar}
             className="btn-grande btn-neon flex w-full items-center justify-center gap-2 text-xl"
           >
             Continuar
           </button>
-        ) : (
-          <button
-            onClick={salvar}
-            disabled={salvando}
-            className="btn-grande btn-neon flex w-full items-center justify-center gap-2 text-2xl disabled:opacity-60"
-          >
-            {salvando ? "Salvando..." : "Salvar produto"}
-          </button>
-        )}
+        </div>
+      )}
       </div>
+
+      {/* Passo 4: o orçamento embutido — por quanto vender + notinhas + fechar.
+          Fora do wrapper estreito porque as notinhas pedem espaço no desktop. */}
+      {passo === 3 && config && (
+        <div className="mt-8">
+          <Nota
+            produto={rascunho}
+            config={config}
+            cores={cores}
+            empresa={empresa}
+            vendas={[]}
+            clientes={clientes}
+            coresIniciais={coresIds}
+            clienteInicial=""
+            ehNovo
+            permiteMudarCor={false}
+            salvando={salvando}
+            onVender={vender}
+            onSoOrcamento={soOrcamento}
+          />
+        </div>
+      )}
 
       {trancada && (
         <Dialogo
