@@ -13,7 +13,7 @@ import {
   acharOuCriarCliente,
   criarVenda,
 } from "@/lib/db";
-import { calcularProduto } from "@/lib/calc-produto";
+import { calcularProduto, acharCor } from "@/lib/calc-produto";
 import { precoBaseDaVenda } from "@/lib/vendas";
 import { nomeLimpo } from "@/lib/clientes";
 import { brl } from "@/lib/format";
@@ -63,6 +63,9 @@ function Resultado() {
   // ?cores) mostra cliente + valor final + vender; só VER A CONTA (link da
   // fábrica ou peça recém-criada) mostra só as notinhas.
   const ehOrcamento = coresParam !== null;
+  // "Vender de novo" abre a nota repetindo a última venda: em vez de todos os
+  // editores abertos, mostra um resumo com "Mudou algo?".
+  const ehRepete = ehOrcamento && params.get("repete") === "1";
 
   const [produto, setProduto] = useState<Produto | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
@@ -78,6 +81,13 @@ function Resultado() {
   // Ela apertou "Vendido": revela o passo do cliente. Antes disso a tela é só a
   // peça + o valor + as notinhas (o orçamento que dá pra mandar).
   const [vendendo, setVendendo] = useState(false);
+  // Modo repete: abre os editores (nome/cor/valor) escondidos; "Mudou algo?"
+  // liga. Fora do repete, os editores estão sempre visíveis.
+  const [mudouAlgo, setMudouAlgo] = useState(false);
+  // Nome DESTA venda — no repete pode virar uma variação ("Chaveiro do
+  // Batman") sem renomear a peça no catálogo.
+  const [nomeVenda, setNomeVenda] = useState("");
+  const editando = !ehRepete || mudouAlgo;
 
   // O que ela decide na nota.
   const [cliente, setCliente] = useState(clienteParam);
@@ -156,6 +166,15 @@ function Resultado() {
     setValorFinal(String(precoBaseDaVenda(vendas, id, resultado.precoVenda)));
   }, [carregou, ehOrcamento, resultado, vendas, id]);
 
+  // Semeia o nome da venda com o da peça, uma vez, quando ela chega. Depois é o
+  // que ela digitar em "Mudou algo?" (só no repete) que manda.
+  const nomeSemeado = useRef(false);
+  useEffect(() => {
+    if (nomeSemeado.current || !produto) return;
+    nomeSemeado.current = true;
+    setNomeVenda(produto.nome);
+  }, [produto]);
+
   const precoNota = Number(valorFinal) || 0;
 
   // No orçamento, as notinhas mostram o valor final que ela digitou (com o lucro
@@ -203,7 +222,9 @@ function Resultado() {
       const clienteId = await acharOuCriarCliente(nomeLimpo(cliente));
       await criarVenda({
         produtoId: produto.id,
-        produtoNome: produto.nome,
+        // No repete, o nome pode ser uma variação desta venda; fora dele é
+        // sempre o nome da peça.
+        produtoNome: ehRepete ? nomeVenda.trim() || produto.nome : produto.nome,
         clienteId,
         coresIds,
         // O valor final que ela digitou é o que fica congelado na venda — e é
@@ -283,50 +304,98 @@ function Resultado() {
               </p>
             </div>
           )}
-          {/* Qual cor dessa vez — a escolha que antes morava na tela de
-              orçamento agora vive aqui, mudando as notinhas ao vivo. */}
-          <div>
-            <h2 className="display mb-3 text-xl font-bold text-tinta">
-              Qual cor dessa vez?
-            </h2>
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-              {cores.map((c) => {
-                const ativo = coresIds.includes(c.id);
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => alternarCor(c.id)}
-                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 bg-painel2 p-2.5 transition-all active:translate-y-0.5 ${
-                      ativo ? "scale-105 border-neon" : "border-borda"
-                    }`}
-                  >
-                    <Carretel cor={c.hex} size={52} />
-                    <span
-                      className={`text-xs font-extrabold leading-tight ${
-                        ativo ? "text-neon" : "text-tinta"
-                      }`}
-                    >
-                      {ativo ? "✓ " : ""}
-                      {c.nome}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {coresIds.length >= 2 && (
-              <p className="mt-4 animate-pop rounded-2xl border border-ciano/30 bg-ciano/10 p-3 text-center font-bold text-ciano">
-                Você misturou {coresIds.length} cores! Vou usar o preço médio
-                delas.
-              </p>
-            )}
-          </div>
+          {editando ? (
+            <>
+              {/* Só no repete: dá pra dar um nome de variação a esta venda
+                  ("Chaveiro do Batman") sem renomear a peça no catálogo. */}
+              {ehRepete && (
+                <div>
+                  <h2 className="display mb-3 text-xl font-bold text-tinta">
+                    Qual o nome dessa vez?
+                  </h2>
+                  <input
+                    value={nomeVenda}
+                    onChange={(e) => setNomeVenda(e.target.value)}
+                    maxLength={40}
+                    placeholder={produto.nome}
+                    className="w-full rounded-2xl border-2 border-borda bg-painel2 p-4 text-xl font-bold text-tinta outline-none focus:border-neon"
+                  />
+                  <p className="mt-2 text-sm font-bold text-mute">
+                    Continua o mesmo produto — o nome muda só nesta venda.
+                  </p>
+                </div>
+              )}
 
-          <PrecoVendido
-            custoTotal={resultado.custoTotal}
-            precoSugerido={resultado.precoVenda}
-            valor={valorFinal}
-            onChange={setValorFinal}
-          />
+              {/* Qual cor dessa vez — a escolha que antes morava na tela de
+                  orçamento agora vive aqui, mudando as notinhas ao vivo. */}
+              <div>
+                <h2 className="display mb-3 text-xl font-bold text-tinta">
+                  Qual cor dessa vez?
+                </h2>
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                  {cores.map((c) => {
+                    const ativo = coresIds.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => alternarCor(c.id)}
+                        className={`flex flex-col items-center gap-1.5 rounded-xl border-2 bg-painel2 p-2.5 transition-all active:translate-y-0.5 ${
+                          ativo ? "scale-105 border-neon" : "border-borda"
+                        }`}
+                      >
+                        <Carretel cor={c.hex} size={52} />
+                        <span
+                          className={`text-xs font-extrabold leading-tight ${
+                            ativo ? "text-neon" : "text-tinta"
+                          }`}
+                        >
+                          {ativo ? "✓ " : ""}
+                          {c.nome}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {coresIds.length >= 2 && (
+                  <p className="mt-4 animate-pop rounded-2xl border border-ciano/30 bg-ciano/10 p-3 text-center font-bold text-ciano">
+                    Você misturou {coresIds.length} cores! Vou usar o preço
+                    médio delas.
+                  </p>
+                )}
+              </div>
+
+              <PrecoVendido
+                custoTotal={resultado.custoTotal}
+                precoSugerido={resultado.precoVenda}
+                valor={valorFinal}
+                onChange={setValorFinal}
+              />
+            </>
+          ) : (
+            /* Repete colapsado: o corta-caminho. Mostra a última venda pronta e
+               só abre os editores se ela apertar "Mudou algo?". */
+            <div className="card text-center">
+              <p className="display text-lg font-bold text-tinta">
+                Repetindo {produto.nome}
+              </p>
+              <div className="mt-3 flex items-center justify-center gap-3">
+                <span className="flex -space-x-2">
+                  {coresIds.slice(0, 4).map((cid, i) => (
+                    <Carretel key={i} cor={acharCor(cid, cores).hex} size={30} />
+                  ))}
+                </span>
+                <span className="mono text-2xl font-bold text-tinta">
+                  {brl(precoNota)}
+                </span>
+              </div>
+              <button
+                onClick={() => setMudouAlgo(true)}
+                className="btn-escuro mt-4 min-h-[48px] w-full rounded-xl text-base font-extrabold"
+              >
+                Mudou algo?
+              </button>
+            </div>
+          )}
         </div>
       )}
 

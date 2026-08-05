@@ -66,9 +66,9 @@ export function vendasDaPeca(vendas: Venda[], produtoId: string): Venda[] {
   return vendas.filter((v) => v.produtoId === produtoId);
 }
 
-/** "1 vendido", "2 vendidos" — o rótulo do contador no card. */
+/** "vendido 1 vez", "vendido 2 vezes" — o rótulo do contador no card. */
 export function rotuloVendidos(n: number): string {
-  return `${n} vendido${n === 1 ? "" : "s"}`;
+  return `vendido ${n} ${n === 1 ? "vez" : "vezes"}`;
 }
 
 /**

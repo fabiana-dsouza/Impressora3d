@@ -139,11 +139,11 @@ describe("vendas de uma peça", () => {
 
 describe("rótulo de vendidos", () => {
   it("uma venda é singular", () => {
-    expect(rotuloVendidos(1)).toBe("1 vendido");
+    expect(rotuloVendidos(1)).toBe("vendido 1 vez");
   });
 
   it("duas ou mais é plural", () => {
-    expect(rotuloVendidos(2)).toBe("2 vendidos");
+    expect(rotuloVendidos(2)).toBe("vendido 2 vezes");
   });
 });
 

@@ -604,6 +604,9 @@ export default function Home() {
               const busca = new URLSearchParams({
                 id: v.produtoId ?? "",
                 cores: v.coresIds.join(","),
+                // repete=1 abre a nota no modo "repetir a última venda": resumo
+                // + "Mudou algo?" em vez dos editores todos abertos.
+                repete: "1",
               });
               // Sem cliente (ex.: venda migrada do contador antigo) a nota abre
               // com o campo de nome vazio — cores prontas, nome ela preenche.

@@ -48,10 +48,14 @@ export default function EspecificacoesProduto({
               </span>
 
               <div className="min-w-0 flex-1">
+                {/* O nome da VARIAÇÃO (pode diferir da peça, ex.: "Chaveiro do
+                    Batman") manda no título; cliente e valor logo abaixo. */}
                 <p className="truncate text-base font-bold text-tinta">
-                  {nome ?? "** falta o nome **"}
+                  {v.produtoNome}
                 </p>
-                <p className="text-sm font-bold text-mute">{brl(v.preco)}</p>
+                <p className="truncate text-sm font-bold text-mute">
+                  {nome ?? "** falta o nome **"} · {brl(v.preco)}
+                </p>
               </div>
 
               <span
