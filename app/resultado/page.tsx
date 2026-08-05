@@ -16,6 +16,7 @@ import {
 import { calcularProduto } from "@/lib/calc-produto";
 import { precoBaseDaVenda } from "@/lib/vendas";
 import { nomeLimpo } from "@/lib/clientes";
+import { brl } from "@/lib/format";
 import { CORES_PADRAO } from "@/lib/defaults";
 import type { Cliente, Config, Cor, Produto, Venda } from "@/lib/types";
 import Confete from "@/components/Confete";
@@ -74,6 +75,9 @@ function Resultado() {
   const [salvando, setSalvando] = useState(false);
   const [avisoVenda, setAvisoVenda] = useState("");
   const [perguntandoPagou, setPerguntandoPagou] = useState(false);
+  // Ela apertou "Vendido": revela o passo do cliente. Antes disso a tela é só a
+  // peça + o valor + as notinhas (o orçamento que dá pra mandar).
+  const [vendendo, setVendendo] = useState(false);
 
   // O que ela decide na nota.
   const [cliente, setCliente] = useState(clienteParam);
@@ -188,8 +192,9 @@ function Resultado() {
     );
   }
 
-  const podeVender =
-    coresIds.length > 0 && nomeLimpo(cliente).length > 0 && precoNota > 0;
+  // Pra começar a venda (revelar o cliente) basta ter cor e valor. O nome do
+  // cliente é exigido só no passo seguinte, na hora de confirmar.
+  const podeIniciar = coresIds.length > 0 && precoNota > 0;
 
   async function registrarVenda(jaPagou: boolean) {
     if (!produto || !resultado || salvando) return;
@@ -263,8 +268,9 @@ function Resultado() {
         </Link>
       </div>
 
-      {/* No orçamento, primeiro ela diz pra quem é e por quanto — os dois
-          mudam a notinha ao vivo. */}
+      {/* No orçamento, ela escolhe a cor e por quanto vai vender — os dois
+          mudam as notinhas ao vivo. Quem é o cliente só aparece depois, quando
+          ela aperta "Vendido". */}
       {ehOrcamento && (
         <div className="mx-auto mb-8 max-w-md space-y-6">
           {ehNovo && (
@@ -273,7 +279,7 @@ function Resultado() {
                 {produto.nome} entrou na fábrica!
               </p>
               <p className="mt-0.5 font-bold text-mute">
-                Já quer fazer o primeiro orçamento?
+                Bora vender pro seu cliente?
               </p>
             </div>
           )}
@@ -315,32 +321,6 @@ function Resultado() {
             )}
           </div>
 
-          <div>
-            <h2 className="display mb-3 text-xl font-bold text-tinta">
-              Pra quem é?
-            </h2>
-            <input
-              value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-              maxLength={24}
-              placeholder="Ex: Maria"
-              className="w-full rounded-2xl border-2 border-borda bg-painel2 p-4 text-xl font-bold text-tinta outline-none focus:border-neon"
-            />
-            {recentes.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {recentes.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setCliente(c.nome)}
-                    className="btn-escuro min-h-[48px] rounded-full px-4 text-base font-bold"
-                  >
-                    {c.nome}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
           <PrecoVendido
             custoTotal={resultado.custoTotal}
             precoSugerido={resultado.precoVenda}
@@ -375,37 +355,90 @@ function Resultado() {
       </div>
 
       {ehOrcamento && (
-        <div className="mt-10">
-          <p className="mb-3 text-center text-base font-extrabold text-mute">
-            {nomeLimpo(cliente)
-              ? `E aí, ${nomeLimpo(cliente)} vai levar?`
-              : "Fechou a venda?"}
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row-reverse">
-            <button
-              onClick={() => setPerguntandoPagou(true)}
-              disabled={salvando || !podeVender}
-              className="btn-grande btn-neon flex-1 disabled:opacity-60"
-            >
-              Vendido
-            </button>
-            <button
-              onClick={() => router.push("/fabrica")}
-              disabled={salvando}
-              className="btn-grande btn-escuro flex-1 disabled:opacity-60"
-            >
-              Apenas orçamento
-            </button>
-          </div>
-          <p className="mt-3 text-center font-bold text-mute">
-            {coresIds.length === 0
-              ? "Escolhe pelo menos uma cor."
-              : nomeLimpo(cliente).length === 0
-              ? "Escreve pra quem é pra marcar como vendido."
-              : precoNota <= 0
-              ? "Põe o valor final pra marcar como vendido."
-              : "Se vendeu, dá pra marcar quando o dinheiro chegar."}
-          </p>
+        <div className="mx-auto mt-10 max-w-md">
+          {!vendendo ? (
+            /* Ainda decidindo: as notinhas acima já servem de orçamento pra
+               mandar. "Vendido" só revela o cliente; ainda não grava nada. */
+            <>
+              <p className="mb-3 text-center text-base font-extrabold text-mute">
+                Fechou a venda?
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row-reverse">
+                <button
+                  onClick={() => setVendendo(true)}
+                  disabled={salvando || !podeIniciar}
+                  className="btn-grande btn-neon flex-1 disabled:opacity-60"
+                >
+                  {precoNota > 0 ? `Vendido por ${brl(precoNota)}` : "Vendido"}
+                </button>
+                <button
+                  onClick={() => router.push("/fabrica")}
+                  disabled={salvando}
+                  className="btn-grande btn-escuro flex-1 disabled:opacity-60"
+                >
+                  Só orçamento
+                </button>
+              </div>
+              <p className="mt-3 text-center font-bold text-mute">
+                {coresIds.length === 0
+                  ? "Escolhe pelo menos uma cor."
+                  : precoNota <= 0
+                  ? "Põe o valor pra marcar como vendido."
+                  : "A notinha do cliente aí em cima já dá pra mandar."}
+              </p>
+            </>
+          ) : (
+            /* Fechou: agora sim, pra quem foi. */
+            <div className="space-y-4">
+              <div>
+                <h2 className="display mb-3 text-xl font-bold text-tinta">
+                  Pra quem é?
+                </h2>
+                <input
+                  autoFocus
+                  value={cliente}
+                  onChange={(e) => setCliente(e.target.value)}
+                  maxLength={24}
+                  placeholder="Ex: Maria"
+                  className="w-full rounded-2xl border-2 border-borda bg-painel2 p-4 text-xl font-bold text-tinta outline-none focus:border-neon"
+                />
+                {recentes.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {recentes.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setCliente(c.nome)}
+                        className="btn-escuro min-h-[48px] rounded-full px-4 text-base font-bold"
+                      >
+                        {c.nome}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row-reverse">
+                <button
+                  onClick={() => setPerguntandoPagou(true)}
+                  disabled={salvando || nomeLimpo(cliente).length === 0}
+                  className="btn-grande btn-neon flex-1 disabled:opacity-60"
+                >
+                  Confirmar venda
+                </button>
+                <button
+                  onClick={() => setVendendo(false)}
+                  disabled={salvando}
+                  className="btn-grande btn-escuro flex-1 disabled:opacity-60"
+                >
+                  Voltar
+                </button>
+              </div>
+              {nomeLimpo(cliente).length === 0 && (
+                <p className="text-center font-bold text-mute">
+                  Escreve pra quem é pra fechar a venda.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
