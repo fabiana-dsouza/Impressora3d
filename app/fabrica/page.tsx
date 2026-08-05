@@ -394,6 +394,27 @@ export default function Home() {
                 Aperte o botão verde aí embaixo pra fabricar seu primeiro
                 produto.
               </p>
+
+              {/* Empurrãozinho não bloqueante: os padrões funcionam, mas o preço
+                  fica certo mesmo se ela ajustar a impressora e as cores dela
+                  antes da primeira peça. Some sozinho quando existe produto. */}
+              <p className="mt-5 text-sm font-bold text-mute">
+                Antes de começar, deixa do seu jeito:
+              </p>
+              <div className="mt-2 flex w-full max-w-xs flex-col gap-2 sm:flex-row">
+                <Link
+                  href="/config"
+                  className="btn-escuro flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl text-sm font-extrabold"
+                >
+                  <IconeEngrenagem size={18} /> Sua impressora
+                </Link>
+                <Link
+                  href="/cores"
+                  className="btn-escuro flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl text-sm font-extrabold"
+                >
+                  <Carretel cor="#5B8DEF" size={18} /> Suas cores
+                </Link>
+              </div>
             </div>
           )
         ) : (
@@ -488,7 +509,13 @@ export default function Home() {
                         <IconeLupa size={16} /> A conta
                       </Link>
                       <button
-                        onClick={() => router.push(`/orcamento?produto=${produto.id}`)}
+                        onClick={() =>
+                          router.push(
+                            `/resultado?id=${produto.id}&cores=${produto.coresIds.join(
+                              ","
+                            )}`
+                          )
+                        }
                         className="btn-grande btn-neon min-h-[48px] flex-1 text-base"
                       >
                         Fazer orçamento
@@ -571,6 +598,18 @@ export default function Home() {
             vendas={vendasDaPeca(vendas, vendoUnidadesDe.id)}
             clientes={clientes}
             cores={cores}
+            onVenderDeNovo={(v) => {
+              const nome =
+                clientes.find((c) => c.id === v.clienteId)?.nome ?? "";
+              const busca = new URLSearchParams({
+                id: v.produtoId ?? "",
+                cores: v.coresIds.join(","),
+              });
+              // Sem cliente (ex.: venda migrada do contador antigo) a nota abre
+              // com o campo de nome vazio — cores prontas, nome ela preenche.
+              if (nome) busca.set("cliente", nome);
+              router.push(`/resultado?${busca.toString()}`);
+            }}
           />
         </Dialogo>
       )}

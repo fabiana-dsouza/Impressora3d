@@ -19,6 +19,7 @@ import { nomeLimpo } from "@/lib/clientes";
 import { CORES_PADRAO } from "@/lib/defaults";
 import type { Cliente, Config, Cor, Produto, Venda } from "@/lib/types";
 import Confete from "@/components/Confete";
+import Carretel from "@/components/Carretel";
 import { Logo } from "@/components/Marca";
 import { IconeAlerta, IconeCasa, IconeMoeda } from "@/components/Icones";
 import NotinhaInterna from "@/components/NotinhaInterna";
@@ -77,6 +78,12 @@ function Resultado() {
   // O que ela decide na nota.
   const [cliente, setCliente] = useState(clienteParam);
   const [valorFinal, setValorFinal] = useState("");
+  // As cores DESTA venda: começam com as que vieram na URL (da peça, ou da
+  // venda que ela está repetindo) e viram editáveis aqui dentro — a tela de
+  // orçamento separada não existe mais, a escolha de cor mora na nota.
+  const [coresIds, setCoresIds] = useState<string[]>(() =>
+    coresParam ? coresParam.split(",").filter(Boolean) : []
+  );
 
   useEffect(() => {
     let vivo = true;
@@ -121,9 +128,10 @@ function Resultado() {
   // cores salvas na peça. Ambas as notinhas devem ler daqui, senão vão discordar.
   const alvo = useMemo(() => {
     if (!produto) return null;
-    const escolhidas = coresParam ? coresParam.split(",").filter(Boolean) : null;
-    return escolhidas ? { ...produto, coresIds: escolhidas } : produto;
-  }, [produto, coresParam]);
+    // No orçamento, usa as cores que ela escolheu na nota; só vendo a conta,
+    // usa as cores salvas na peça.
+    return ehOrcamento ? { ...produto, coresIds } : produto;
+  }, [produto, ehOrcamento, coresIds]);
 
   // Com ?cores=, calcula com as cores DESTA venda em vez das da peça. É a
   // mesma calcularProduto — nenhuma regra de preço nova.
@@ -174,7 +182,14 @@ function Resultado() {
     [clientes]
   );
 
-  const podeVender = nomeLimpo(cliente).length > 0 && precoNota > 0;
+  function alternarCor(id: string) {
+    setCoresIds((atual) =>
+      atual.includes(id) ? atual.filter((c) => c !== id) : [...atual, id]
+    );
+  }
+
+  const podeVender =
+    coresIds.length > 0 && nomeLimpo(cliente).length > 0 && precoNota > 0;
 
   async function registrarVenda(jaPagou: boolean) {
     if (!produto || !resultado || salvando) return;
@@ -185,9 +200,7 @@ function Resultado() {
         produtoId: produto.id,
         produtoNome: produto.nome,
         clienteId,
-        coresIds: coresParam
-          ? coresParam.split(",").filter(Boolean)
-          : produto.coresIds,
+        coresIds,
         // O valor final que ela digitou é o que fica congelado na venda — e é
         // ele que vira a base do próximo orçamento desta peça.
         preco: precoNota,
@@ -264,12 +277,49 @@ function Resultado() {
               </p>
             </div>
           )}
+          {/* Qual cor dessa vez — a escolha que antes morava na tela de
+              orçamento agora vive aqui, mudando as notinhas ao vivo. */}
+          <div>
+            <h2 className="display mb-3 text-xl font-bold text-tinta">
+              Qual cor dessa vez?
+            </h2>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+              {cores.map((c) => {
+                const ativo = coresIds.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => alternarCor(c.id)}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 bg-painel2 p-2.5 transition-all active:translate-y-0.5 ${
+                      ativo ? "scale-105 border-neon" : "border-borda"
+                    }`}
+                  >
+                    <Carretel cor={c.hex} size={52} />
+                    <span
+                      className={`text-xs font-extrabold leading-tight ${
+                        ativo ? "text-neon" : "text-tinta"
+                      }`}
+                    >
+                      {ativo ? "✓ " : ""}
+                      {c.nome}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {coresIds.length >= 2 && (
+              <p className="mt-4 animate-pop rounded-2xl border border-ciano/30 bg-ciano/10 p-3 text-center font-bold text-ciano">
+                Você misturou {coresIds.length} cores! Vou usar o preço médio
+                delas.
+              </p>
+            )}
+          </div>
+
           <div>
             <h2 className="display mb-3 text-xl font-bold text-tinta">
               Pra quem é?
             </h2>
             <input
-              autoFocus={!clienteParam}
               value={cliente}
               onChange={(e) => setCliente(e.target.value)}
               maxLength={24}
@@ -348,10 +398,12 @@ function Resultado() {
             </button>
           </div>
           <p className="mt-3 text-center font-bold text-mute">
-            {!podeVender
-              ? nomeLimpo(cliente).length === 0
-                ? "Escreve pra quem é pra marcar como vendido."
-                : "Põe o valor final pra marcar como vendido."
+            {coresIds.length === 0
+              ? "Escolhe pelo menos uma cor."
+              : nomeLimpo(cliente).length === 0
+              ? "Escreve pra quem é pra marcar como vendido."
+              : precoNota <= 0
+              ? "Põe o valor final pra marcar como vendido."
               : "Se vendeu, dá pra marcar quando o dinheiro chegar."}
           </p>
         </div>

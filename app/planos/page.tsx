@@ -36,6 +36,12 @@ function Planos() {
   const planoBruto = params.get("plano");
   const planoAuto: PlanoId | null =
     params.get("auto") === "1" && ehPlanoId(planoBruto) ? planoBruto : null;
+  // O plano escolhido na vitrine, com ou sem auto. Sem auto (ex.: voltando do
+  // link de confirmação de email) não abre o pagamento sozinho, só entra em
+  // destaque pra ela confirmar num clique.
+  const planoEscolhido: PlanoId | null = ehPlanoId(planoBruto)
+    ? planoBruto
+    : null;
 
   const [assinatura, setAssinatura] = useState<db.Assinatura | null>(null);
   const [carregou, setCarregou] = useState(false);
@@ -139,6 +145,14 @@ function Planos() {
     window.location.href = "/";
   }
 
+  // O plano escolhido vira o botão primário (neon); sem escolha, o anual — que
+  // vale mais a pena — segue como primário, igual a antes.
+  const planoPrimario: PlanoId = planoEscolhido ?? "anual";
+  const classeBotao = (p: PlanoId) =>
+    `btn-grande mt-5 w-full disabled:opacity-60 ${
+      p === planoPrimario ? "btn-neon" : "btn-escuro"
+    }`;
+
   if (!carregou || conferindo) {
     return (
       <main className="flex min-h-[70vh] flex-col items-center justify-center text-center">
@@ -211,6 +225,15 @@ function Planos() {
         </p>
       </div>
 
+      {/* Veio da vitrine/confirmação de email com um plano escolhido: lembra
+          qual foi, pra ela só confirmar. Não aparece voltando do pagamento. */}
+      {planoEscolhido && !voltouDoPagamento && (
+        <p className="mb-4 animate-pop rounded-xl border border-neon/40 bg-neon/10 p-3 text-center font-extrabold text-neon">
+          Você escolheu o plano {PLANOS[planoEscolhido].nome.toLowerCase()} — é
+          só confirmar aqui embaixo. 👇
+        </p>
+      )}
+
       {/* aviso pós-pagamento ainda não confirmado */}
       {voltouDoPagamento && !assinatura?.ativa && (
         <p className="mb-4 animate-pop rounded-xl border border-ciano/40 bg-ciano/10 p-3 text-center font-extrabold text-ciano">
@@ -244,7 +267,7 @@ function Planos() {
           <button
             onClick={() => assinar("mensal")}
             disabled={indo !== null}
-            className="btn-grande btn-escuro mt-5 w-full disabled:opacity-60"
+            className={classeBotao("mensal")}
           >
             {indo === "mensal" ? "Abrindo pagamento..." : "Assinar mensal"}
           </button>
@@ -271,7 +294,7 @@ function Planos() {
           <button
             onClick={() => assinar("anual")}
             disabled={indo !== null}
-            className="btn-grande btn-neon mt-5 w-full disabled:opacity-60"
+            className={classeBotao("anual")}
           >
             {indo === "anual" ? "Abrindo pagamento..." : "Assinar anual"}
           </button>

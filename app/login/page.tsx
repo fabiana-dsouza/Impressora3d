@@ -223,12 +223,22 @@ function Login() {
         setCarregando(false);
         return;
       }
+      // Com um plano escolhido na vitrine, o link de confirmação volta pra
+      // /planos com esse plano em destaque (1 clique pra assinar) — sem abrir o
+      // pagamento sozinho (nada de auto=1: o susto de cair no Mercado Pago
+      // vindo de um email não vale). Sem plano, cai no destino padrão do
+      // callback (/fabrica, que devolve pra /planos se ainda não pagou).
+      const voltaDoEmail = plano
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+            `/planos?plano=${plano}`
+          )}`
+        : `${window.location.origin}/auth/callback`;
       const { data, error } = await supabase().auth.signUp({
         email: emailCanonico,
         password: senha,
         options: {
           data: { nome_empresa: empresa.trim() },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: voltaDoEmail,
         },
       });
       if (error) throw error;

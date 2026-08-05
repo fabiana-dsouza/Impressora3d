@@ -207,8 +207,9 @@ export default function ListaVendidos({
               <div className="mt-3 flex flex-wrap gap-2">
                 {pagas ? (
                   /* Já pagou: só dá pra arrumar (marcou sem querer / foi teste).
-                     Trocar nome e vender de novo saíram daqui de propósito —
-                     nome só no "** falta o nome **", vender é em Meus produtos. */
+                     Trocar o nome fica no "** falta o nome **"; "Vender de novo"
+                     mora nas unidades da peça (o diálogo "ver quem comprou" do
+                     card), pra não duplicar a ação aqui. */
                   <button
                     onClick={() => onEditar(v)}
                     className="btn-grande btn-escuro min-h-[48px] flex-1 text-base"
