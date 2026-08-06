@@ -48,10 +48,13 @@ export default function ListaFizParaMim({
   vendas,
   clientes,
   cores,
+  onEditar,
 }: {
   vendas: Venda[];
   clientes: Cliente[];
   cores: Cor[];
+  /** Abre o diálogo de arrumar — aqui serve pra reclassificar de volta. */
+  onEditar: (venda: Venda) => void;
 }) {
   const lista = naoFoiVenda(vendas);
   const gastoMim = totalGastoPraMim(vendas);
@@ -130,6 +133,17 @@ export default function ListaFizParaMim({
                     {brl(v.custo)}
                   </span>
                 </span>
+              </div>
+
+              {/* Foi engano? O "Editar" reabre o diálogo pra reclassificar isto
+                  de volta pra venda (ou pra a outra categoria). */}
+              <div className="mt-3">
+                <button
+                  onClick={() => onEditar(v)}
+                  className="btn-grande btn-escuro min-h-[48px] w-full text-base"
+                >
+                  Editar
+                </button>
               </div>
             </div>
           );

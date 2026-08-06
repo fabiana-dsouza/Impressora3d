@@ -5,7 +5,7 @@
  */
 import { supabase } from "./supabase/client";
 import { CONFIG_PADRAO, CORES_PADRAO, EMPRESA_PADRAO } from "./defaults";
-import type { Cliente, Config, Cor, Produto, Venda } from "./types";
+import type { Cliente, Config, Cor, Destino, Produto, Venda } from "./types";
 import type { NovaVenda } from "./vendas";
 import { linhasDaMigracao } from "./vendas";
 import {
@@ -644,6 +644,25 @@ export async function marcarNaoPago(id: string): Promise<void> {
   const { error } = await supabase()
     .from("vendas")
     .update({ pago_em: null })
+    .eq("user_id", uid)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Troca o destino de um registro (`venda` / `mim` / `graca`). Pra reclassificar
+ * o que já existe — a venda antiga que na verdade foi feita pra si mesma ou dada
+ * de graça, e o inverso. Mexe SÓ no destino: preço, custo e `pago_em` congelados
+ * ficam intactos, o registro só troca de aba. Espelho do marcarPago.
+ */
+export async function mudarDestinoVenda(
+  id: string,
+  destino: Destino
+): Promise<void> {
+  const uid = await idUsuario();
+  const { error } = await supabase()
+    .from("vendas")
+    .update({ destino })
     .eq("user_id", uid)
     .eq("id", id);
   if (error) throw error;

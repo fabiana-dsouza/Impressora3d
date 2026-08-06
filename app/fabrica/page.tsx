@@ -6,8 +6,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as db from "@/lib/db";
 import { renomearCliente } from "@/lib/db";
 import { calcularProduto, acharCor } from "@/lib/calc-produto";
-import { recebido, vendasDaPeca, rotuloVendidos } from "@/lib/vendas";
-import type { Cliente, Config, Cor, Produto, Venda } from "@/lib/types";
+import { ehVenda, recebido, vendasDaPeca, rotuloVendidos } from "@/lib/vendas";
+import type {
+  Cliente,
+  Config,
+  Cor,
+  Destino,
+  Produto,
+  ResultadoCalculo,
+  Venda,
+} from "@/lib/types";
 import { CORES_PADRAO, EMPRESA_PADRAO } from "@/lib/defaults";
 import Confete from "@/components/Confete";
 import Carretel from "@/components/Carretel";
@@ -19,12 +27,14 @@ import EspecificacoesProduto from "@/components/EspecificacoesProduto";
 import { Logo, ImpressoraIlustracao } from "@/components/Marca";
 import {
   IconeAlerta,
+  IconeCoracao,
   IconeEngrenagem,
   IconeEtiqueta,
   IconeLixeira,
   IconeLupa,
   IconeMais,
   IconeMoeda,
+  IconeUsuario,
 } from "@/components/Icones";
 
 type Aba = "catalogo" | "vendidos" | "falta" | "mim";
@@ -93,6 +103,20 @@ export default function Home() {
   // deixaria o cofrinho parecendo zerado sem explicar por quê (ver efeito
   // de migração abaixo).
   const [avisoMigracao, setAvisoMigracao] = useState("");
+  // Registrar "fiz uma sem vender" direto do card do catálogo. `passoGraca`
+  // troca o diálogo pro campo de nome quando ela escolhe "dei de graça".
+  const [fazendoSemVender, setFazendoSemVender] = useState<{
+    produto: Produto;
+    resultado: ResultadoCalculo;
+  } | null>(null);
+  const [passoGraca, setPassoGraca] = useState(false);
+  const [nomeGraca, setNomeGraca] = useState("");
+
+  function fecharSemVender() {
+    setFazendoSemVender(null);
+    setPassoGraca(false);
+    setNomeGraca("");
+  }
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -270,6 +294,55 @@ export default function Home() {
       setVendas(anterior);
       falhou(e);
     });
+  }
+
+  // Reclassifica um registro (venda ↔ pra mim ↔ de graça). Só troca de aba: o
+  // preço, o custo e o "pago" congelados ficam intactos. Otimista, com desfazer.
+  async function reclassificar(v: Venda, destino: Destino) {
+    const anterior = vendas;
+    setEditando(null);
+    setVendas(vendas.map((x) => (x.id === v.id ? { ...x, destino } : x)));
+    try {
+      await db.mudarDestinoVenda(v.id, destino);
+    } catch (e) {
+      setVendas(anterior);
+      falhou(e);
+    }
+  }
+
+  // Registra uma unidade "pra mim" / "de graça" direto do card, sem orçamento —
+  // congela o custo atual. "De graça" pode levar o nome de quem ganhou.
+  async function registrarSemVenda(destino: "mim" | "graca", nome: string) {
+    const alvo = fazendoSemVender;
+    if (!alvo) return;
+    const { produto, resultado } = alvo;
+    fecharSemVender();
+    try {
+      const nomeLimpo = nome.trim();
+      const clienteId =
+        destino === "graca" && nomeLimpo
+          ? await db.acharOuCriarCliente(nomeLimpo)
+          : null;
+      const nova = {
+        produtoId: produto.id,
+        produtoNome: produto.nome,
+        clienteId,
+        coresIds: [...produto.coresIds],
+        preco: resultado.precoVenda,
+        custo: resultado.custoTotal,
+        // Pra mim / de graça já nascem quitadas (não têm pagamento).
+        pagoEm: Date.now(),
+        destino,
+      };
+      const id = await db.criarVenda(nova);
+      setVendas((atual) => [{ ...nova, id, criadoEm: Date.now() }, ...atual]);
+      // Só criou cliente novo no "de graça" com nome — recarrega a lista.
+      if (clienteId) db.lerClientes().then(setClientes).catch(() => {});
+      setFesta(true);
+      setTimeout(() => setFesta(false), 1600);
+    } catch (e) {
+      falhou(e);
+    }
   }
 
   async function salvarNomeProdutoVenda() {
@@ -567,6 +640,17 @@ export default function Home() {
                         Fazer orçamento
                       </button>
                     </div>
+
+                    {/* Atalho: registrar uma unidade pra si / de graça sem
+                        passar pelo orçamento. Quieto, pra não roubar o CTA. */}
+                    <button
+                      onClick={() =>
+                        setFazendoSemVender({ produto, resultado })
+                      }
+                      className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg text-sm font-bold text-mute hover:text-ciano active:translate-y-0.5"
+                    >
+                      <IconeCoracao size={15} /> fiz uma sem vender ›
+                    </button>
                   </div>
                 </div>
               </div>
@@ -586,7 +670,15 @@ export default function Home() {
         </div>
       ) : aba === "mim" ? (
         /* ---------- ABA: FIZ PARA MIM ---------- */
-        <ListaFizParaMim vendas={vendas} clientes={clientes} cores={cores} />
+        <ListaFizParaMim
+          vendas={vendas}
+          clientes={clientes}
+          cores={cores}
+          onEditar={(v) => {
+            setEditando(v);
+            setNomeProdutoVenda(v.produtoNome);
+          }}
+        />
       ) : (
         /* ---------- ABA: VENDIDOS / FALTA RECEBER ---------- */
         <ListaVendidos
@@ -736,7 +828,7 @@ export default function Home() {
       {editando && (
         <Dialogo
           icone={<IconeEngrenagem size={26} />}
-          titulo="Arrumar esta venda"
+          titulo={ehVenda(editando) ? "Arrumar esta venda" : "Arrumar este registro"}
           texto="O novo nome também aparece em Meus produtos."
           dispensar="Deixa quieto"
           onFechar={() => setEditando(null)}
@@ -759,7 +851,36 @@ export default function Home() {
             >
               Salvar nome
             </button>
-            {recebido(editando) && (
+
+            {/* Reclassificar: os dois OUTROS destinos, pra corrigir um registro
+                que ficou no lugar errado (a venda antiga que foi pra si mesma,
+                ou o "pra mim" que na verdade foi vendido). Sempre reversível. */}
+            <div className="mt-1 border-t border-borda pt-2">
+              <p className="mb-1 text-left text-sm font-extrabold text-mute">
+                Isso foi, na verdade…
+              </p>
+              <div className="flex flex-col gap-2">
+                {(
+                  [
+                    ["venda", "Foi uma venda", <IconeMoeda key="v" size={18} />],
+                    ["mim", "Foi pra mim", <IconeUsuario key="m" size={18} />],
+                    ["graca", "Dei de graça", <IconeCoracao key="g" size={18} />],
+                  ] as [Destino, string, React.ReactNode][]
+                )
+                  .filter(([d]) => d !== editando.destino)
+                  .map(([d, rotulo, icone]) => (
+                    <button
+                      key={d}
+                      onClick={() => reclassificar(editando, d)}
+                      className="btn-grande btn-escuro flex w-full items-center justify-center gap-2"
+                    >
+                      {icone} {rotulo}
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            {ehVenda(editando) && recebido(editando) && (
               <button
                 onClick={() => {
                   naoPagou(editando.id);
@@ -781,6 +902,59 @@ export default function Home() {
               Apagar este pedido
             </button>
           </div>
+        </Dialogo>
+      )}
+
+      {/* Card do catálogo: registrar uma unidade sem vender. Passo 1 escolhe
+          pra mim / de graça; "de graça" abre o campo de nome (opcional). */}
+      {fazendoSemVender && (
+        <Dialogo
+          icone={<IconeCoracao size={26} />}
+          titulo={`${fazendoSemVender.produto.nome} — sem vender`}
+          texto={
+            passoGraca
+              ? "Pra quem você deu? (pode deixar em branco)"
+              : "Essa unidade foi feita pra quê?"
+          }
+          dispensar="Deixa quieto"
+          onFechar={fecharSemVender}
+        >
+          {passoGraca ? (
+            <div className="flex flex-col gap-2">
+              <input
+                autoFocus
+                value={nomeGraca}
+                onChange={(e) => setNomeGraca(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && registrarSemVenda("graca", nomeGraca)
+                }
+                maxLength={24}
+                placeholder="Pra quem? (opcional)"
+                className="w-full rounded-xl border-2 border-borda bg-painel2 p-3 text-center text-lg font-bold text-tinta outline-none focus:border-neon"
+              />
+              <button
+                onClick={() => registrarSemVenda("graca", nomeGraca)}
+                className="btn-grande btn-neon w-full"
+              >
+                Registrar de graça
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => registrarSemVenda("mim", "")}
+                className="btn-grande btn-escuro flex w-full items-center justify-center gap-2"
+              >
+                <IconeUsuario size={20} /> É pra mim mesma
+              </button>
+              <button
+                onClick={() => setPassoGraca(true)}
+                className="btn-grande btn-escuro flex w-full items-center justify-center gap-2"
+              >
+                <IconeCoracao size={20} /> Dei de graça
+              </button>
+            </div>
+          )}
         </Dialogo>
       )}
 
