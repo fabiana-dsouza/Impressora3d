@@ -7,13 +7,20 @@ import {
   recebido,
   totalNoCaixa,
   totalQueTeDevem,
+  totalGastoPraMim,
+  totalDeGraca,
   vendasPagas,
   vendasPendentes,
 } from "@/lib/vendas";
 import type { Cliente, Cor, Venda } from "@/lib/types";
 import Carretel from "@/components/Carretel";
 import Valor from "@/components/Valor";
-import { IconeMoeda, IconeRelogio } from "@/components/Icones";
+import {
+  IconeMoeda,
+  IconeRelogio,
+  IconeUsuario,
+  IconeCoracao,
+} from "@/components/Icones";
 
 /**
  * A lista de vendas — usada nas DUAS abas de dinheiro:
@@ -50,7 +57,12 @@ export default function ListaVendidos({
   const caixa = totalNoCaixa(vendas);
   const devendo = totalQueTeDevem(vendas);
   const quantasPagas = vendasPagas(vendas).length;
-  const quantasPendentes = vendas.length - quantasPagas;
+  const quantasPendentes = vendasPendentes(vendas).length;
+  // "Fiz pra mim" / "de graça" viram duas caixinhas ao lado do cofrinho, mas só
+  // depois que ela usa o recurso — antes disso a aba fica igual a antes.
+  const gastoMim = totalGastoPraMim(vendas);
+  const gastoGraca = totalDeGraca(vendas);
+  const temFizParaMim = gastoMim > 0 || gastoGraca > 0;
 
   function nomeDoCliente(v: Venda): string | null {
     if (!v.clienteId) return null;
@@ -115,6 +127,35 @@ export default function ListaVendidos({
             ganho de verdade, com {quantasPagas} venda
             {quantasPagas === 1 ? "" : "s"} paga{quantasPagas === 1 ? "" : "s"} 🎉
           </p>
+
+          {/* As duas caixinhas do "Fiz para mim", ao ladinho do cofrinho.
+              Só o custo — não é dinheiro que entrou. Ver a aba pra detalhar. */}
+          {temFizParaMim && (
+            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-borda pt-3">
+              <div className="text-center">
+                <p className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase leading-none text-mute">
+                  <IconeUsuario size={12} /> gastei pra mim
+                </p>
+                <Valor
+                  valor={gastoMim}
+                  max="1.3rem"
+                  min="0.85rem"
+                  className="mt-1 block font-bold text-tinta"
+                />
+              </div>
+              <div className="text-center">
+                <p className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase leading-none text-mute">
+                  <IconeCoracao size={12} /> dei de graça
+                </p>
+                <Valor
+                  valor={gastoGraca}
+                  max="1.3rem"
+                  min="0.85rem"
+                  className="mt-1 block font-bold text-tinta"
+                />
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* Quanto ainda vão te pagar — não é do cofrinho ainda, por isso ciano. */

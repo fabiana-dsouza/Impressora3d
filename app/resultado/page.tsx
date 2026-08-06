@@ -14,6 +14,7 @@ import {
   criarVenda,
 } from "@/lib/db";
 import { CORES_PADRAO } from "@/lib/defaults";
+import { rotaDepoisDaVenda } from "@/lib/vendas";
 import type { Cliente, Config, Cor, Produto, Venda } from "@/lib/types";
 import Confete from "@/components/Confete";
 import { Logo } from "@/components/Marca";
@@ -108,7 +109,12 @@ function Resultado() {
     if (!produto || salvando) return;
     setSalvando(true);
     try {
-      const clienteId = await acharOuCriarCliente(dados.cliente);
+      // "Pra mim" nunca tem nome; "de graça" pode ter. Só busca cliente quando
+      // ela escreveu um nome, senão acharOuCriarCliente reclamaria do vazio.
+      const clienteId = dados.cliente
+        ? await acharOuCriarCliente(dados.cliente)
+        : null;
+      const naoFoiVenda = dados.destino !== "venda";
       await criarVenda({
         produtoId: produto.id,
         produtoNome: dados.produtoNome,
@@ -116,11 +122,11 @@ function Resultado() {
         coresIds: dados.coresIds,
         preco: dados.preco,
         custo: dados.custo,
-        pagoEm: dados.jaPagou ? Date.now() : null,
+        // "Pra mim" / "de graça" não têm pagamento: já nascem quitadas.
+        pagoEm: naoFoiVenda || dados.jaPagou ? Date.now() : null,
+        destino: dados.destino,
       });
-      router.push(
-        dados.jaPagou ? "/fabrica?aba=vendidos&festa=1" : "/fabrica?aba=falta"
-      );
+      router.push(rotaDepoisDaVenda(dados.destino, dados.jaPagou));
     } catch (e) {
       console.error(e);
       setAvisoVenda("Não consegui anotar a venda. Confere a internet!");

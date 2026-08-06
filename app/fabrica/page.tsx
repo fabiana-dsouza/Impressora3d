@@ -14,18 +14,20 @@ import Carretel from "@/components/Carretel";
 import Valor from "@/components/Valor";
 import Dialogo from "@/components/Dialogo";
 import ListaVendidos from "@/components/ListaVendidos";
+import ListaFizParaMim from "@/components/ListaFizParaMim";
 import EspecificacoesProduto from "@/components/EspecificacoesProduto";
 import { Logo, ImpressoraIlustracao } from "@/components/Marca";
 import {
   IconeAlerta,
   IconeEngrenagem,
+  IconeEtiqueta,
   IconeLixeira,
   IconeLupa,
   IconeMais,
   IconeMoeda,
 } from "@/components/Icones";
 
-type Aba = "catalogo" | "vendidos" | "falta";
+type Aba = "catalogo" | "vendidos" | "falta" | "mim";
 
 /** Caixinha rotulada do card do produto — é ela que serve de régua pro valor. */
 function Etiqueta({
@@ -71,6 +73,11 @@ export default function Home() {
   const [festa, setFesta] = useState(false);
   const [aviso, setAviso] = useState("");
   const [apagando, setApagando] = useState<Produto | null>(null);
+  // Renomear um produto direto no card do catálogo (só o nome).
+  const [renomeandoProduto, setRenomeandoProduto] = useState<Produto | null>(
+    null
+  );
+  const [nomeProduto, setNomeProduto] = useState("");
   const [vendoUnidadesDe, setVendoUnidadesDe] = useState<Produto | null>(null);
   const [vendas, setVendas] = useState<Venda[]>([]);
   const [vendasCarregou, setVendasCarregou] = useState(false);
@@ -92,6 +99,7 @@ export default function Home() {
     const abaQuery = q.get("aba");
     if (abaQuery === "vendidos") setAba("vendidos");
     if (abaQuery === "falta") setAba("falta");
+    if (abaQuery === "mim") setAba("mim");
     // Veio de "Vendido → já recebi": comemora com o mesmo confete do "Recebi!".
     if (q.get("festa") === "1") {
       setFesta(true);
@@ -205,6 +213,31 @@ export default function Home() {
       setProdutos(anterior);
       falhou(e);
     });
+  }
+
+  // Renomear a peça no catálogo. O nome também é congelado nas vendas, então
+  // troca nos dois lados na tela na hora — igual ao "arrumar esta venda".
+  async function salvarNomeProduto() {
+    const alvo = renomeandoProduto;
+    const nome = nomeProduto.trim();
+    if (!alvo || !nome) return;
+
+    const produtosAnteriores = produtos;
+    const vendasAnteriores = vendas;
+    setRenomeandoProduto(null);
+    setProdutos(produtos.map((p) => (p.id === alvo.id ? { ...p, nome } : p)));
+    setVendas(
+      vendas.map((v) =>
+        v.produtoId === alvo.id ? { ...v, produtoNome: nome } : v
+      )
+    );
+    try {
+      await db.renomearProduto(alvo.id, nome);
+    } catch (e) {
+      setProdutos(produtosAnteriores);
+      setVendas(vendasAnteriores);
+      falhou(e);
+    }
   }
 
   function receber(vendaId: string) {
@@ -354,20 +387,21 @@ export default function Home() {
         </div>
       )}
 
-      {/* Abas — três agora, então pílula compacta (o btn-grande não cabe em
-          três no celular sem quebrar o rótulo em duas linhas). */}
-      <div className="mb-5 grid grid-cols-3 gap-2">
+      {/* Abas — quatro agora. Quatro numa linha só espremeria o rótulo no
+          celular, então viram grade 2×2 (no desktop cabem lado a lado). */}
+      <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {(
           [
             ["catalogo", "Meus produtos"],
             ["vendidos", "Vendidos"],
             ["falta", "Falta receber"],
+            ["mim", "Fiz para mim"],
           ] as [Aba, string][]
         ).map(([id, rotulo]) => (
           <button
             key={id}
             onClick={() => setAba(id)}
-            className={`flex min-h-[48px] items-center justify-center rounded-full px-1.5 text-center text-xs font-extrabold leading-tight ${
+            className={`flex min-h-[48px] items-center justify-center rounded-full px-1.5 text-center text-sm font-extrabold leading-tight ${
               aba === id ? "btn-neon" : "btn-escuro"
             }`}
           >
@@ -446,13 +480,25 @@ export default function Home() {
                       <h2 className="display min-w-0 truncate text-lg font-bold text-tinta">
                         {produto.nome}
                       </h2>
-                      <button
-                        onClick={() => setApagando(produto)}
-                        aria-label="Apagar produto"
-                        className="shrink-0 rounded-lg p-1.5 text-mute hover:text-perigo active:scale-90"
-                      >
-                        <IconeLixeira size={18} />
-                      </button>
+                      <div className="flex shrink-0 items-center">
+                        <button
+                          onClick={() => {
+                            setNomeProduto(produto.nome);
+                            setRenomeandoProduto(produto);
+                          }}
+                          aria-label="Renomear produto"
+                          className="rounded-lg p-1.5 text-mute hover:text-ciano active:scale-90"
+                        >
+                          <IconeEtiqueta size={18} />
+                        </button>
+                        <button
+                          onClick={() => setApagando(produto)}
+                          aria-label="Apagar produto"
+                          className="rounded-lg p-1.5 text-mute hover:text-perigo active:scale-90"
+                        >
+                          <IconeLixeira size={18} />
+                        </button>
+                      </div>
                     </div>
 
                     {/* custo e preço lado a lado; o lucro é a estrela, ocupa
@@ -538,8 +584,11 @@ export default function Home() {
           <Logo size={54} className="animate-wiggle" />
           <p className="mt-3 font-extrabold text-mute">Contando suas vendas...</p>
         </div>
+      ) : aba === "mim" ? (
+        /* ---------- ABA: FIZ PARA MIM ---------- */
+        <ListaFizParaMim vendas={vendas} clientes={clientes} cores={cores} />
       ) : (
-        /* ---------- ABA: VENDIDOS ---------- */
+        /* ---------- ABA: VENDIDOS / FALTA RECEBER ---------- */
         <ListaVendidos
           vendas={vendas}
           clientes={clientes}
@@ -582,6 +631,35 @@ export default function Home() {
           onConfirmar={() => apagar(apagando.id)}
           onFechar={() => setApagando(null)}
         />
+      )}
+
+      {renomeandoProduto && (
+        <Dialogo
+          icone={<IconeEtiqueta size={26} />}
+          titulo="Novo nome do produto"
+          texto="O novo nome também aparece nas vendas dele."
+          dispensar="Deixa quieto"
+          onFechar={() => setRenomeandoProduto(null)}
+        >
+          <div className="flex flex-col gap-2">
+            <input
+              autoFocus
+              value={nomeProduto}
+              onChange={(e) => setNomeProduto(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && salvarNomeProduto()}
+              maxLength={40}
+              placeholder={renomeandoProduto.nome}
+              className="w-full rounded-xl border-2 border-borda bg-painel2 p-3 text-lg font-bold text-tinta outline-none focus:border-neon"
+            />
+            <button
+              onClick={salvarNomeProduto}
+              disabled={!nomeProduto.trim()}
+              className="btn-grande btn-neon w-full disabled:opacity-40"
+            >
+              Salvar nome
+            </button>
+          </div>
+        </Dialogo>
       )}
 
       {/* Janelinha só de ver: as unidades vendidas daquela peça. Receber e

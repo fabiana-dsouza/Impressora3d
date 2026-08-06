@@ -10,6 +10,9 @@ import {
   rotuloVendidos,
   vendasPagas,
   vendasPendentes,
+  naoFoiVenda,
+  totalGastoPraMim,
+  totalDeGraca,
 } from "./vendas";
 import { calcularProduto } from "./calc-produto";
 import { CONFIG_PADRAO } from "./defaults";
@@ -25,6 +28,7 @@ function venda(over: Partial<Venda> = {}): Venda {
     preco: 25,
     custo: 10,
     pagoEm: null,
+    destino: "venda",
     criadoEm: 0,
     ...over,
   };
@@ -262,5 +266,66 @@ describe("linhas da migração do contador antigo", () => {
       CORES
     );
     expect(l.pagoEm).toBe(0);
+  });
+});
+
+describe("fiz pra mim / dei de graça não são dinheiro", () => {
+  it("não entram no cofrinho, mesmo com pagoEm preenchido", () => {
+    const vs = [
+      venda({ id: "v", preco: 25, custo: 10, pagoEm: 1 }),
+      venda({ id: "m", preco: 25, custo: 10, pagoEm: 1, destino: "mim" }),
+      venda({ id: "g", preco: 25, custo: 10, pagoEm: 1, destino: "graca" }),
+    ];
+    expect(totalNoCaixa(vs)).toBe(15); // só a venda de verdade
+  });
+
+  it("não aparecem em vendas pagas nem pendentes", () => {
+    const vs = [
+      venda({ id: "v", pagoEm: 1 }),
+      venda({ id: "m", pagoEm: null, destino: "mim" }),
+      venda({ id: "g", pagoEm: null, destino: "graca" }),
+    ];
+    expect(vendasPagas(vs).map((v) => v.id)).toEqual(["v"]);
+    expect(vendasPendentes(vs).map((v) => v.id)).toEqual([]);
+  });
+
+  it("não contam em 'falta receber'", () => {
+    const vs = [venda({ preco: 30, pagoEm: null, destino: "mim" })];
+    expect(totalQueTeDevem(vs)).toBe(0);
+  });
+
+  it("a aba 'Fiz para mim' lista as duas categorias", () => {
+    const vs = [
+      venda({ id: "v" }),
+      venda({ id: "m", destino: "mim" }),
+      venda({ id: "g", destino: "graca" }),
+    ];
+    expect(naoFoiVenda(vs).map((v) => v.id)).toEqual(["m", "g"]);
+  });
+
+  it("as caixas somam o CUSTO, não o preço", () => {
+    const vs = [
+      venda({ preco: 25, custo: 10, destino: "mim" }),
+      venda({ preco: 40, custo: 7, destino: "mim" }),
+      venda({ preco: 15, custo: 4, destino: "graca" }),
+    ];
+    expect(totalGastoPraMim(vs)).toBe(17);
+    expect(totalDeGraca(vs)).toBe(4);
+  });
+
+  it("não viram base de preço da peça (só venda de verdade lembra)", () => {
+    const vs = [
+      venda({ produtoId: "p1", preco: 20, criadoEm: 100 }),
+      venda({ produtoId: "p1", preco: 99, criadoEm: 300, destino: "mim" }),
+    ];
+    expect(precoBaseDaVenda(vs, "p1", 50)).toBe(20);
+  });
+
+  it("não contam no 'vendido N vezes' da peça", () => {
+    const vs = [
+      venda({ id: "v", produtoId: "p1" }),
+      venda({ id: "m", produtoId: "p1", destino: "mim" }),
+    ];
+    expect(vendasDaPeca(vs, "p1").map((v) => v.id)).toEqual(["v"]);
   });
 });

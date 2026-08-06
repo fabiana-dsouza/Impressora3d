@@ -95,6 +95,16 @@ export interface Cliente {
 }
 
 /**
+ * Pra onde a peça foi:
+ *  - "venda": venda normal (é o padrão; toda venda antiga é isto).
+ *  - "mim": ela fez pra si mesma (não é venda).
+ *  - "graca": ela deu de graça (não é venda).
+ * As duas últimas NÃO entram no cofrinho nem no "falta receber": aparecem na
+ * aba "Fiz para mim" e somam o CUSTO (o que saiu do bolso), não o preço.
+ */
+export type Destino = "venda" | "mim" | "graca";
+
+/**
  * Uma venda que aconteceu.
  *
  * `preco` e `custo` são CONGELADOS na hora da venda: o cofrinho mostra lucro,
@@ -114,5 +124,7 @@ export interface Venda {
   custo: number;
   /** Nulo = falta pagar. Só conta no cofrinho depois de preenchido. */
   pagoEm: number | null;
+  /** Venda de verdade, "fiz pra mim" ou "dei de graça". Ver {@link Destino}. */
+  destino: Destino;
   criadoEm: number;
 }

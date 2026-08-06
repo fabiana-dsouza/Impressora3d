@@ -13,6 +13,7 @@ import {
   SemAssinaturaError,
 } from "@/lib/db";
 import { CORES_PADRAO } from "@/lib/defaults";
+import { rotaDepoisDaVenda } from "@/lib/vendas";
 import { calcular, taxasDaConfig, horasDecimais, travarMargem } from "@/lib/calc";
 import { precoMedioPorGrama } from "@/lib/calc-produto";
 import { novoId } from "@/lib/format";
@@ -215,13 +216,19 @@ export default function NovoProduto() {
     }
   }
 
-  // "Vendido": guarda a peça e registra a primeira venda dela pro cliente.
+  // "Vendido" (ou "fiz pra mim" / "dei de graça"): guarda a peça e registra o
+  // primeiro destino dela.
   async function vender(dados: DadosVenda) {
     if (!config || salvando) return;
     setSalvando(true);
     try {
       const produto = await salvarPeca();
-      const clienteId = await acharOuCriarCliente(dados.cliente);
+      // "Pra mim" nunca tem nome; "de graça" pode ter. Só busca cliente quando
+      // ela escreveu um nome.
+      const clienteId = dados.cliente
+        ? await acharOuCriarCliente(dados.cliente)
+        : null;
+      const naoFoiVenda = dados.destino !== "venda";
       await criarVenda({
         produtoId: produto.id,
         produtoNome: dados.produtoNome,
@@ -229,11 +236,11 @@ export default function NovoProduto() {
         coresIds: dados.coresIds,
         preco: dados.preco,
         custo: dados.custo,
-        pagoEm: dados.jaPagou ? Date.now() : null,
+        // "Pra mim" / "de graça" não têm pagamento: já nascem quitadas.
+        pagoEm: naoFoiVenda || dados.jaPagou ? Date.now() : null,
+        destino: dados.destino,
       });
-      router.push(
-        dados.jaPagou ? "/fabrica?aba=vendidos&festa=1" : "/fabrica?aba=falta"
-      );
+      router.push(rotaDepoisDaVenda(dados.destino, dados.jaPagou));
     } catch (e) {
       tratarErroAoSalvar(e);
     }

@@ -332,12 +332,15 @@ create policy "cria produto com assinatura" on public.produtos
 
 -- ---------- Cortesia da família (sem cobrança, sem vencimento) ----------
 -- Edite a lista de emails e rode: essas contas ficam liberadas pra sempre.
+-- É um `array[...]` (não um `in (...)`) DE PROPÓSITO: um array pode ficar
+-- vazio sem quebrar o SQL. Um `in ()` sem nenhum email dá erro de sintaxe.
 insert into public.assinaturas (user_id, status, plano, pago_ate)
 select u.id, 'ativa', null, null
 from auth.users u
-where lower(u.email) in (
-            -- <-- adicione aqui os emails da família
-)
+where lower(u.email) = any (array[
+     'souza.dfabi@gmail.com'       -- <-- adicione aqui os emails da família, entre aspas e com vírgula.
+            -- ex:  'tia@gmail.com', 'vovo@gmail.com'
+]::text[])
 on conflict (user_id) do update set status = 'ativa', pago_ate = null;
 
 -- =====================================================================
@@ -386,6 +389,13 @@ create table if not exists public.vendas (
   criado_em    timestamptz not null default now(),
   primary key (user_id, id)
 );
+
+-- "Fiz pra mim" / "dei de graça" não são venda: ganham uma etiqueta na própria
+-- linha, e as vendas antigas viram 'venda' de graça pelo default. Não entram no
+-- cofrinho — os totais filtram por destino no TypeScript (lib/vendas.ts).
+alter table public.vendas
+  add column if not exists destino text not null default 'venda'
+  check (destino in ('venda', 'mim', 'graca'));
 
 create index if not exists vendas_usuario_data
   on public.vendas (user_id, criado_em desc);

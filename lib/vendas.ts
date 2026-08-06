@@ -1,5 +1,14 @@
-import type { Config, Cor, Produto, Venda } from "./types";
+import type { Config, Cor, Destino, Produto, Venda } from "./types";
 import { calcularProduto } from "./calc-produto";
+
+/**
+ * Pra onde a fábrica leva depois de gravar. "Pra mim" / "de graça" caem na aba
+ * nova; venda paga comemora em Vendidos; venda a prazo vai pra Falta receber.
+ */
+export function rotaDepoisDaVenda(destino: Destino, jaPagou: boolean): string {
+  if (destino !== "venda") return "/fabrica?aba=mim&festa=1";
+  return jaPagou ? "/fabrica?aba=vendidos&festa=1" : "/fabrica?aba=falta";
+}
 
 /** Uma venda antes de existir no banco (sem id nem data ainda). */
 export type NovaVenda = Omit<Venda, "id" | "criadoEm">;
@@ -17,14 +26,48 @@ export function recebido(v: Venda): boolean {
   return v.pagoEm !== null;
 }
 
+/**
+ * Venda de dinheiro DE VERDADE (não é "fiz pra mim" nem "dei de graça"). Toda
+ * conta de cofrinho / falta receber / "vendido N vezes" passa por aqui — assim
+ * as peças que ela guardou ou deu nunca contam como dinheiro.
+ */
+export function ehVenda(v: Venda): boolean {
+  return v.destino === "venda";
+}
+
+/** Peças que ela fez pra si mesma. */
+export function ehParaMim(v: Venda): boolean {
+  return v.destino === "mim";
+}
+
+/** Peças que ela deu de graça. */
+export function ehDeGraca(v: Venda): boolean {
+  return v.destino === "graca";
+}
+
+/** Tudo que NÃO foi venda — a lista da aba "Fiz para mim". */
+export function naoFoiVenda(vendas: Venda[]): Venda[] {
+  return vendas.filter((v) => !ehVenda(v));
+}
+
 /** Vendas que já entraram no caixa e aparecem na aba "Vendidos". */
 export function vendasPagas(vendas: Venda[]): Venda[] {
-  return vendas.filter(recebido);
+  return vendas.filter((v) => ehVenda(v) && recebido(v));
 }
 
 /** Vendas que ainda aguardam pagamento e aparecem em "Falta receber". */
 export function vendasPendentes(vendas: Venda[]): Venda[] {
-  return vendas.filter((v) => !recebido(v));
+  return vendas.filter((v) => ehVenda(v) && !recebido(v));
+}
+
+/** Quanto de material ela já gastou fazendo pra si mesma (soma o CUSTO). */
+export function totalGastoPraMim(vendas: Venda[]): number {
+  return vendas.filter(ehParaMim).reduce((s, v) => s + v.custo, 0);
+}
+
+/** Quanto de material ela já deu de graça (soma o CUSTO). */
+export function totalDeGraca(vendas: Venda[]): number {
+  return vendas.filter(ehDeGraca).reduce((s, v) => s + v.custo, 0);
 }
 
 /** O cofrinho: só o que já entrou de verdade. Soma LUCRO. */
@@ -52,7 +95,7 @@ export function precoBaseDaVenda(
   precoSugerido: number
 ): number {
   const ultima = vendas
-    .filter((v) => v.produtoId === produtoId)
+    .filter((v) => ehVenda(v) && v.produtoId === produtoId)
     .reduce<Venda | null>(
       (maisRecente, v) =>
         !maisRecente || v.criadoEm > maisRecente.criadoEm ? v : maisRecente,
@@ -61,9 +104,13 @@ export function precoBaseDaVenda(
   return ultima ? ultima.preco : precoSugerido;
 }
 
-/** Só as vendas daquela peça (ignora as de peça apagada, com produtoId nulo). */
+/**
+ * Só as VENDAS daquela peça (o "vendido N vezes" e o "vender de novo"). Ignora
+ * peça apagada (produtoId nulo) e também o que ela fez pra si / deu de graça —
+ * esses aparecem na aba "Fiz para mim", não contam como venda da peça.
+ */
 export function vendasDaPeca(vendas: Venda[], produtoId: string): Venda[] {
-  return vendas.filter((v) => v.produtoId === produtoId);
+  return vendas.filter((v) => ehVenda(v) && v.produtoId === produtoId);
 }
 
 /** "vendido 1 vez", "vendido 2 vezes" — o rótulo do contador no card. */
@@ -106,6 +153,8 @@ export function linhasDaMigracao(
         // A data da venda real nunca foi registrada; a da peça é o mais
         // perto da verdade que dá pra chegar.
         pagoEm: p.criadoEm ?? Date.now(),
+        // O contador antigo só contava venda mesmo.
+        destino: "venda",
       });
     }
   }

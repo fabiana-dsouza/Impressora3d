@@ -6,13 +6,18 @@ import { precoBaseDaVenda } from "@/lib/vendas";
 import { nomeLimpo } from "@/lib/clientes";
 import { brl } from "@/lib/format";
 import { montarOrcamento } from "@/lib/orcamento";
-import type { Cliente, Config, Cor, Produto, Venda } from "@/lib/types";
+import type { Cliente, Config, Cor, Destino, Produto, Venda } from "@/lib/types";
 import Carretel from "@/components/Carretel";
 import PrecoVendido from "@/components/PrecoVendido";
 import NotinhaInterna from "@/components/NotinhaInterna";
 import NotinhaCliente from "@/components/NotinhaCliente";
 import Dialogo from "@/components/Dialogo";
-import { IconeMoeda, IconeVoltar } from "@/components/Icones";
+import {
+  IconeMoeda,
+  IconeVoltar,
+  IconeUsuario,
+  IconeCoracao,
+} from "@/components/Icones";
 
 /** Quantas pastilhas de cliente recente cabem sem virar parede de botão. */
 const QUANTAS_PASTILHAS = 6;
@@ -25,6 +30,8 @@ export type DadosVenda = {
   custo: number;
   cliente: string;
   jaPagou: boolean;
+  /** "venda" normal, "mim" (fiz pra mim) ou "graca" (dei de graça). */
+  destino: Destino;
 };
 
 /**
@@ -85,6 +92,9 @@ export default function Nota({
   // Nome DESTA venda — no repete vira variação sem renomear a peça.
   const [nomeVenda, setNomeVenda] = useState(produto.nome);
   const [perguntandoPagou, setPerguntandoPagou] = useState(false);
+  // Na tela 2 ela pode marcar que NÃO foi venda: "pra mim" ou "de graça".
+  // Nulo = venda normal. Liga/desliga tocando na pílula.
+  const [modoEspecial, setModoEspecial] = useState<"mim" | "graca" | null>(null);
 
   const editando = !ehRepete || mudouAlgo;
 
@@ -145,15 +155,34 @@ export default function Nota({
   // exigido só lá, na hora de marcar como vendido.
   const podeIniciar = coresIds.length > 0 && precoNota > 0;
 
+  const nomeDaVenda = () =>
+    ehRepete ? nomeVenda.trim() || produto.nome : produto.nome;
+
   function confirmarVenda(jaPagou: boolean) {
     setPerguntandoPagou(false);
     onVender?.({
       coresIds,
-      produtoNome: ehRepete ? nomeVenda.trim() || produto.nome : produto.nome,
+      produtoNome: nomeDaVenda(),
       preco: precoNota,
       custo: resultado.custoTotal,
       cliente: nomeLimpo(cliente),
       jaPagou,
+      destino: "venda",
+    });
+  }
+
+  // "Fiz pra mim" / "Dei de graça": não é venda, então nem pergunta se pagou —
+  // grava na hora com o custo congelado. "Pra mim" ignora o nome (é ela); "de
+  // graça" guarda quem ganhou, se ela escreveu.
+  function registrarEspecial(destino: "mim" | "graca") {
+    onVender?.({
+      coresIds,
+      produtoNome: nomeDaVenda(),
+      preco: precoNota,
+      custo: resultado.custoTotal,
+      cliente: destino === "graca" ? nomeLimpo(cliente) : "",
+      jaPagou: false,
+      destino,
     });
   }
 
@@ -317,62 +346,123 @@ export default function Nota({
   }
 
   // TELA 2 — pra quem é, a notinha pronta, e vendeu ou não.
+  // "pra mim" não pede nome; "de graça" ainda deixa dizer quem ganhou.
+  const ehMim = modoEspecial === "mim";
+  const ehGraca = modoEspecial === "graca";
+
+  function alternarEspecial(qual: "mim" | "graca") {
+    setModoEspecial((atual) => (atual === qual ? null : qual));
+  }
+
   return (
     <div className="space-y-8">
       <div className="mx-auto max-w-md">
-        <h2 className="display mb-3 text-xl font-bold text-tinta">Pra quem é?</h2>
-        <input
-          autoFocus
-          value={cliente}
-          onChange={(e) => setCliente(e.target.value)}
-          maxLength={24}
-          placeholder="Ex: Maria"
-          className="w-full rounded-2xl border-2 border-borda bg-painel2 p-4 text-xl font-bold text-tinta outline-none focus:border-neon"
-        />
-        {recentes.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {recentes.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setCliente(c.nome)}
-                className="btn-escuro min-h-[48px] rounded-full px-4 text-base font-bold"
-              >
-                {c.nome}
-              </button>
-            ))}
+        <h2 className="display mb-3 text-xl font-bold text-tinta">
+          {ehMim ? "É pra você!" : ehGraca ? "Deu pra quem?" : "Pra quem é?"}
+        </h2>
+
+        {ehMim ? (
+          <div className="animate-pop rounded-2xl border-2 border-neon/40 bg-neon/10 p-4 text-center font-bold text-tinta">
+            Essa peça é sua mesmo — não precisa de nome. Vai pra{" "}
+            <span className="text-neon">"Fiz para mim"</span>.
           </div>
+        ) : (
+          <>
+            <input
+              autoFocus
+              value={cliente}
+              onChange={(e) => setCliente(e.target.value)}
+              maxLength={24}
+              placeholder={ehGraca ? "Ex: Maria (se quiser)" : "Ex: Maria"}
+              className="w-full rounded-2xl border-2 border-borda bg-painel2 p-4 text-xl font-bold text-tinta outline-none focus:border-neon"
+            />
+            {recentes.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {recentes.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCliente(c.nome)}
+                    className="btn-escuro min-h-[48px] rounded-full px-4 text-base font-bold"
+                  >
+                    {c.nome}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
+
+        {/* Não foi venda? As duas pílulas que ligam/desligam o modo especial. */}
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => alternarEspecial("mim")}
+            aria-pressed={ehMim}
+            className={`flex min-h-[48px] items-center justify-center gap-2 rounded-full px-3 text-sm font-extrabold ${
+              ehMim ? "btn-neon" : "btn-escuro"
+            }`}
+          >
+            <IconeUsuario size={18} /> É pra mim mesma
+          </button>
+          <button
+            onClick={() => alternarEspecial("graca")}
+            aria-pressed={ehGraca}
+            className={`flex min-h-[48px] items-center justify-center gap-2 rounded-full px-3 text-sm font-extrabold ${
+              ehGraca ? "btn-neon" : "btn-escuro"
+            }`}
+          >
+            <IconeCoracao size={18} /> Dei de graça
+          </button>
+        </div>
       </div>
 
       {notinhas}
 
       <div className="mx-auto max-w-md">
-        <p className="mb-3 text-center text-base font-extrabold text-mute">
-          {nomeLimpo(cliente)
-            ? `E aí, ${nomeLimpo(cliente)} vai levar?`
-            : "Fechou a venda?"}
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row-reverse">
-          <button
-            onClick={() => setPerguntandoPagou(true)}
-            disabled={salvando || nomeLimpo(cliente).length === 0}
-            className="btn-grande btn-neon flex-1 disabled:opacity-60"
-          >
-            {`Vendido por ${brl(precoNota)}`}
-          </button>
-          <button
-            onClick={() => onSoOrcamento?.()}
-            disabled={salvando}
-            className="btn-grande btn-escuro flex-1 disabled:opacity-60"
-          >
-            Só orçamento
-          </button>
-        </div>
-        <p className="mt-3 text-center font-bold text-mute">
-          {nomeLimpo(cliente).length === 0
-            ? "Escreve pra quem é pra marcar como vendido."
-            : "Se vendeu, dá pra marcar quando o dinheiro chegar."}
-        </p>
+        {modoEspecial ? (
+          /* Não é venda: um botão só, sem "já pagou". */
+          <>
+            <button
+              onClick={() => registrarEspecial(modoEspecial)}
+              disabled={salvando}
+              className="btn-grande btn-neon w-full disabled:opacity-60"
+            >
+              {ehMim ? "Guardar pra mim" : "Anotar que dei de graça"}
+            </button>
+            <p className="mt-3 text-center font-bold text-mute">
+              Isso não é venda — não entra no cofrinho. Fica guardado em{" "}
+              <span className="text-tinta">"Fiz para mim"</span>.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mb-3 text-center text-base font-extrabold text-mute">
+              {nomeLimpo(cliente)
+                ? `E aí, ${nomeLimpo(cliente)} vai levar?`
+                : "Fechou a venda?"}
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row-reverse">
+              <button
+                onClick={() => setPerguntandoPagou(true)}
+                disabled={salvando || nomeLimpo(cliente).length === 0}
+                className="btn-grande btn-neon flex-1 disabled:opacity-60"
+              >
+                {`Vendido por ${brl(precoNota)}`}
+              </button>
+              <button
+                onClick={() => onSoOrcamento?.()}
+                disabled={salvando}
+                className="btn-grande btn-escuro flex-1 disabled:opacity-60"
+              >
+                Só orçamento
+              </button>
+            </div>
+            <p className="mt-3 text-center font-bold text-mute">
+              {nomeLimpo(cliente).length === 0
+                ? "Escreve pra quem é pra marcar como vendido."
+                : "Se vendeu, dá pra marcar quando o dinheiro chegar."}
+            </p>
+          </>
+        )}
         <button
           onClick={() => setFase("ajustar")}
           disabled={salvando}

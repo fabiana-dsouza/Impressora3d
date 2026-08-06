@@ -582,6 +582,8 @@ function paraVenda(r: Linha): Venda {
     preco: Number(r.preco) || 0,
     custo: Number(r.custo) || 0,
     pagoEm: r.pago_em ? Date.parse(r.pago_em) : null,
+    // Linhas antigas (antes da coluna existir) voltam sem destino: são vendas.
+    destino: r.destino === "mim" || r.destino === "graca" ? r.destino : "venda",
     criadoEm: r.criado_em ? Date.parse(r.criado_em) : 0,
   };
 }
@@ -610,6 +612,7 @@ export async function criarVenda(v: NovaVenda): Promise<string> {
     preco: v.preco,
     custo: v.custo,
     pago_em: v.pagoEm === null ? null : new Date(v.pagoEm).toISOString(),
+    destino: v.destino,
   });
   if (error) throw error;
 
@@ -661,6 +664,34 @@ export async function apagarVenda(id: string): Promise<void> {
 }
 
 /**
+ * Renomeia o produto no catálogo e mantém todas as vendas dele com o mesmo
+ * nome — o nome na aba Vendidos bate com "Meus produtos". Usado tanto pelo
+ * renomear do card quanto pelo "arrumar esta venda" (quando a peça existe).
+ */
+export async function renomearProduto(
+  id: string,
+  nome: string
+): Promise<void> {
+  const uid = await idUsuario();
+  const sb = supabase();
+  const limpo = nome.trim();
+
+  const produto = await sb
+    .from("produtos")
+    .update({ nome: limpo })
+    .eq("user_id", uid)
+    .eq("id", id);
+  if (produto.error) throw produto.error;
+
+  const vendas = await sb
+    .from("vendas")
+    .update({ produto_nome: limpo })
+    .eq("user_id", uid)
+    .eq("produto_id", id);
+  if (vendas.error) throw vendas.error;
+}
+
+/**
  * Renomeia o produto a partir de uma venda. Se o produto ainda existe, mantém
  * o catálogo e todas as vendas dele com o mesmo nome. Venda órfã muda sozinha.
  */
@@ -669,30 +700,15 @@ export async function renomearProdutoDaVenda(
   produtoId: string | null,
   produtoNome: string
 ): Promise<void> {
-  const uid = await idUsuario();
-  const sb = supabase();
-  const nome = produtoNome.trim();
-
   if (produtoId) {
-    const produto = await sb
-      .from("produtos")
-      .update({ nome })
-      .eq("user_id", uid)
-      .eq("id", produtoId);
-    if (produto.error) throw produto.error;
-
-    const vendas = await sb
-      .from("vendas")
-      .update({ produto_nome: nome })
-      .eq("user_id", uid)
-      .eq("produto_id", produtoId);
-    if (vendas.error) throw vendas.error;
+    await renomearProduto(produtoId, produtoNome);
     return;
   }
 
-  const venda = await sb
+  const uid = await idUsuario();
+  const venda = await supabase()
     .from("vendas")
-    .update({ produto_nome: nome })
+    .update({ produto_nome: produtoNome.trim() })
     .eq("user_id", uid)
     .eq("id", vendaId);
   if (venda.error) throw venda.error;

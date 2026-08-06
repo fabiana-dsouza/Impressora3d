@@ -173,3 +173,9 @@ export const IconeChave = (p: P) => (
     <circle cx="16.5" cy="7.5" r="1.6" />
   </Base>
 );
+
+export const IconeCoracao = (p: P) => (
+  <Base {...p}>
+    <path d="M12 20s-7-4.3-9.3-8.5C1.2 8.7 2.6 5.5 5.7 5.5c1.9 0 3.2 1.1 4.3 2.4 1.1-1.3 2.4-2.4 4.3-2.4 3.1 0 4.5 3.2 3 6C19 15.7 12 20 12 20z" />
+  </Base>
+);
